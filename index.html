@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Bouncing Ball Engine with Collisions</title>
+    <title>Memory Reconsolidation Visualizer</title>
     <style>
         canvas {
             border: 1px solid #000;
         }
     </style>
 </head>
-<body>
-    <canvas id="canvas" width="600" height="400"></canvas>
+<body style="background-color: black; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
+    <canvas id="canvas" width="700" height="700"></canvas>
     <script>
         const canvas = document.getElementById("canvas");
         const ctx = canvas.getContext("2d");
@@ -111,47 +111,6 @@
                 return distanceSquared < (this.radius + sibling.radius) * (this.radius + sibling.radius);
             }
 
-            handleSiblingCollision(sibling) {
-                const energyConserved = 1.0;
-
-                const dx = sibling.x - this.x;
-                const dy = sibling.y - this.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                // Calculate the unit normal vector
-                const normalX = dx / distance;
-                const normalY = dy / distance;
-
-                // Calculate the relative velocity components
-                const relativeVelocityX = sibling.velocityX - this.velocityX;
-                const relativeVelocityY = sibling.velocityY - this.velocityY;
-
-                // Calculate the relative velocity in the direction of the normal vector
-                const relativeVelocityInNormalDirection = normalX * relativeVelocityX + normalY * relativeVelocityY;
-
-                // Check if the balls are moving toward each other
-                if (relativeVelocityInNormalDirection < 0) {
-                    // Calculate the impulse (change in velocity) based on the masses of the balls
-                    const massSum = this.radius + sibling.radius;
-                    const impulse = (2 * relativeVelocityInNormalDirection) / massSum * energyConserved;
-
-                    // Apply the impulse to the velocities
-                    this.velocityX += impulse * normalX * sibling.radius;
-                    this.velocityY += impulse * normalY * sibling.radius;
-                    sibling.velocityX -= impulse * normalX * this.radius;
-                    sibling.velocityY -= impulse * normalY * this.radius;
-
-                    // Separate the balls to prevent overlapping
-                    const overlap = (this.radius + sibling.radius - distance) / 2;
-                    const overlapX = overlap * normalX;
-                    const overlapY = overlap * normalY;
-                    this.x -= overlapX;
-                    this.y -= overlapY;
-                    sibling.x += overlapX;
-                    sibling.y += overlapY;
-                }
-            }
-
             handleCollision(other, isParent) {
                 const energyConserved = 1.000;
 
@@ -202,18 +161,6 @@
                 }
             }
 
-            drawThisAndChildren(parent) {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.fill();
-                ctx.closePath();
-
-                for (const childBall of this.childBalls) {
-                    childBall.drawThisAndChildren(this);
-                }
-            }
-
             generateChildren(levelsLeft) {
                 const color = ["black", "green", "red", "yellow", "purple", "orange"][levelsLeft];
                 for (let n = 0; n < 10; n++) {
@@ -225,42 +172,27 @@
                       childBall.generateChildren(levelsLeft - 1);
                 }
             }
-        }
 
-        const mainBall = new Ball(canvas.width / 2, canvas.height / 2, 200, "blue", true);
-        mainBall.velocityX = 0;
-        mainBall.velocityY = 0;
-        mainBall.generateChildren(2);
+            drawThisAndChildren(parent) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                //ctx.fillStyle = this.color;
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 1;
+                //ctx.fill();
+                ctx.stroke();
+                ctx.closePath();
 
-/*
-        for (let level = 0; level < 3; level++) {
-          const childBall = new Ball(mainBall.x, mainBall.y, 40, "red", false);
-            childBall.velocityX = Math.random() * 5;
-            childBall.velocityY = Math.random() * 5;
-            mainBall.childBalls.push(childBall);
-        }
-
-        for (let i = 0; i < 10; i++) {
-            const childBall = new Ball(mainBall.x, mainBall.y, 40, "red", false);
-            childBall.velocityX = Math.random() * 5;
-            childBall.velocityY = Math.random() * 5;
-            mainBall.childBalls.push(childBall);
-
-            for (let j = 0; j < 10; j++) {
-                const grandChildBall = new Ball(childBall.x, childBall.y, 4, "green", false);
-                grandChildBall.velocityX = 0;
-                grandChildBall.velocityY = 0;
-                childBall.childBalls.push(grandChildBall);
-
-                for (let k = 0; k < 10; k++) {
-                    const greatGrandChildBall = new Ball(grandChildBall.x, grandChildBall.y, 1, "black", false);
-                    greatGrandChildBall.velocityX = 0;
-                    greatGrandChildBall.velocityY = 0;
-                    grandChildBall.childBalls.push(greatGrandChildBall);
+                for (const childBall of this.childBalls) {
+                    childBall.drawThisAndChildren(this);
                 }
             }
         }
-        */
+
+        const mainBall = new Ball(canvas.width / 2, canvas.height / 2, canvas.height / 2, "black", true);
+        mainBall.velocityX = 0;
+        mainBall.velocityY = 0;
+        mainBall.generateChildren(2);
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
