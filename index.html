@@ -162,7 +162,7 @@
             }
 
             generateChildren(levelsLeft) {
-                const color = ["black", "green", "red", "yellow", "purple", "orange"][levelsLeft];
+                const color = ["red", "orange", "yellow", "green", "blue", "purple"][levelsLeft];
                 for (let n = 0; n < 10; n++) {
                     const childBall = new Ball(this.x, this.y, this.radius / 5, color, false);
                     childBall.velocityX = Math.random() * 5;
@@ -176,10 +176,8 @@
             drawThisAndChildren(parent) {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                //ctx.fillStyle = this.color;
-                ctx.strokeStyle = 'white';
+                ctx.strokeStyle = this.color;
                 ctx.lineWidth = 1;
-                //ctx.fill();
                 ctx.stroke();
                 ctx.closePath();
 
@@ -189,7 +187,7 @@
             }
         }
 
-        const mainBall = new Ball(canvas.width / 2, canvas.height / 2, canvas.height / 2, "black", true);
+        const mainBall = new Ball(canvas.width / 2, canvas.height / 2, canvas.height / 2, "white", true);
         mainBall.velocityX = 0;
         mainBall.velocityY = 0;
         mainBall.generateChildren(2);
