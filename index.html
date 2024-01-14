@@ -8,11 +8,17 @@
         }
     </style>
 </head>
-<body style="background-color: black; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-    <canvas id="canvas" width="700" height="700"></canvas>
+<body style="background-color: black; margin: 0; overflow: hidden;">
+    <canvas id="canvas"></canvas>
     <script>
         const canvas = document.getElementById("canvas");
         const ctx = canvas.getContext("2d");
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
 
         class Ball {
             constructor(x, y, radius, color, isRoot) {
@@ -25,6 +31,8 @@
             }
 
             update() {
+                this.velocityX *= 0.99;
+                this.velocityY *= 0.99;
                 this.x += this.velocityX;
                 this.y += this.velocityY;
 
@@ -74,7 +82,7 @@
             }
 
             handleCollision(other, isParent) {
-                const energyConserved = 1.000;
+                const energyConserved = 0.80;
 
                 const dx = other.x - this.x;
                 const dy = other.y - this.y;
@@ -94,7 +102,8 @@
                     return;
                 if (!isParent && relativeVelocityInNormalDirection > 0)
                     return;
-                if (this.isRoot) {
+                //if (this.isRoot) {
+                if (isParent) {
                     const thisMass = Math.PI * this.radius * this.radius;
                     const otherMass = Math.PI * other.radius * other.radius;
                     const massSum = thisMass + otherMass;
@@ -129,11 +138,11 @@
 
             generateChildren(levelsLeft) {
                 //const color = ["red", "orange", "yellow", "green", "blue", "purple"][levelsLeft];
-                const color = "white";
-                for (let n = 0; n < 10; n++) {
-                    const childBall = new Ball(this.x, this.y, this.radius / 5, color, false);
-                    childBall.velocityX = Math.random() * 5 - (5 / 2);
-                    childBall.velocityY = Math.random() * 5 - (5 / 2);
+                const color = "#333333";
+                for (let n = 0; n < 30; n++) {
+                    const childBall = new Ball(this.x, this.y, this.radius / 7, color, false);
+                    childBall.velocityX = (Math.random() - 0.5) * 10;
+                    childBall.velocityY = (Math.random() - 0.5) * 10;
                     this.childBalls.push(childBall);
                     if (levelsLeft > 1)
                       childBall.generateChildren(levelsLeft - 1);
@@ -141,10 +150,10 @@
             }
 
             drawThisAndChildren(parent) {
-                this.draw();
                 for (const childBall of this.childBalls) {
                     childBall.drawThisAndChildren(this);
                 }
+                this.draw();
             }
 
             draw() {
@@ -157,19 +166,51 @@
             }
         }
 
-        const mainBall = new Ball(canvas.width / 2, canvas.height / 2, canvas.height / 2, "white", true);
+        const mainBall = new Ball(canvas.width / 4, canvas.height / 4, canvas.height / 4, "white", true);
         mainBall.velocityX = 0;
         mainBall.velocityY = 0;
-        mainBall.generateChildren(3);
+        mainBall.generateChildren(2);
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (isMousePressed) {
+                // Calculate the direction vector
+                const dx = this.mouseX - mainBall.x;
+                const dy = this.mouseY - mainBall.y;
+
+                // Normalize the direction vector
+                const length = Math.sqrt(dx * dx + dy * dy);
+                const strength = Math.min(1, length / 200);
+                const normalizedDx = dx / length * strength;
+                const normalizedDy = dy / length * strength;
+
+                // Set the velocity based on the direction
+                mainBall.velocityX = normalizedDx * 10; // Adjust the speed as needed
+                mainBall.velocityY = normalizedDy * 10; // Adjust the speed as needed
+            }
 
             mainBall.update();
             mainBall.drawThisAndChildren();
 
             requestAnimationFrame(animate);
         }
+
+        let isMousePressed = false;
+        let mouseX = 0;
+        let mouseY = 0;
+        canvas.addEventListener("mousedown", () => {
+            isMousePressed = true;
+        });
+        canvas.addEventListener("mouseup", () => {
+            isMousePressed = false;
+            mainBall.velocityX = 0;
+            mainBall.velocityY = 0;
+        });
+        canvas.addEventListener("mousemove", (event) => {
+            this.mouseX = event.clientX - canvas.getBoundingClientRect().left;
+            this.mouseY = event.clientY - canvas.getBoundingClientRect().top;
+        });
 
         animate();
     </script>
