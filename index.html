@@ -56,44 +56,6 @@
                 return distanceSquared > (this.radius - child.radius) * (this.radius - child.radius);   
             }
 
-            handleChildCollision(child) {
-                const energyConserved = 1.0;
-
-                const dx = child.x - this.x;
-                const dy = child.y - this.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                // Calculate the unit normal vector
-                const normalX = dx / distance;
-                const normalY = dy / distance;
-
-                // Calculate the relative velocity components
-                const relativeVelocityX = child.velocityX - this.velocityX;
-                const relativeVelocityY = child.velocityY - this.velocityY;
-
-                // Calculate the relative velocity in the direction of the normal vector
-                const relativeVelocityInNormalDirection = normalX * relativeVelocityX + normalY * relativeVelocityY;
-
-                const overlap = this.radius - (distance + child.radius);
-
-                // Check if the child ball is moving towards the parent circle
-                //if (relativeVelocityInNormalDirection > 0) {
-                if (overlap < 0) {
-                    // Calculate the impulse (change in velocity) for the child ball
-                    const impulse = -2 * relativeVelocityInNormalDirection * energyConserved;
-
-                    // Apply the impulse to the child ball's velocities
-                    child.velocityX += impulse * normalX;
-                    child.velocityY += impulse * normalY;
-
-                    // Separate the child ball from the parent circle to prevent overlap
-                    const overlapX = overlap * normalX;
-                    const overlapY = overlap * normalY;
-                    child.x += overlapX;
-                    child.y += overlapY;
-                }
-            }
-
             isSiblingBoundingBoxColliding(sibling) {
                 if (Math.abs(this.x - sibling.x) > this.radius + sibling.radius)
                     return false;
@@ -118,26 +80,31 @@
                 const dy = other.y - this.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
-                // Calculate the unit normal vector
                 const normalX = dx / distance;
                 const normalY = dy / distance;
 
-                // Calculate the relative velocity components
                 const relativeVelocityX = other.velocityX - this.velocityX;
                 const relativeVelocityY = other.velocityY - this.velocityY;
-
-                // Calculate the relative velocity in the direction of the normal vector
                 const relativeVelocityInNormalDirection = normalX * relativeVelocityX + normalY * relativeVelocityY;
 
                 const overlap = isParent
                     ? (this.radius - other.radius - distance)
                     : (this.radius + other.radius - distance) / 2;
-                const doHandleCollision = isParent
-                    ? overlap < 0
-                    : relativeVelocityInNormalDirection < 0
+                if (isParent && overlap >= 0)
+                    return;
+                if (!isParent && relativeVelocityInNormalDirection > 0)
+                    return;
+                if (this.isRoot) {
+                    const thisMass = Math.PI * this.radius * this.radius;
+                    const otherMass = Math.PI * other.radius * other.radius;
+                    const massSum = thisMass + otherMass;
+                    const impulse = 2 * relativeVelocityInNormalDirection * energyConserved;
 
-                // Check if the balls are moving toward each other
-                if (doHandleCollision) {
+                    other.x += overlap * normalX;
+                    other.y += overlap * normalY;
+                    other.velocityX -= impulse * normalX;
+                    other.velocityY -= impulse * normalY;
+                } else {
                     const thisMass = Math.PI * this.radius * this.radius;
                     const otherMass = Math.PI * other.radius * other.radius;
                     const massSum = thisMass + otherMass;
@@ -148,49 +115,52 @@
                     const thisImpulse = impulse * thisMassProportion;
                     const otherImpulse = impulse * otherMassProportion;
 
+                    this.x -= overlap * normalX * otherMassProportion;
+                    this.y -= overlap * normalY * otherMassProportion;
+                    this.velocityX += otherImpulse * normalX;
+                    this.velocityY += otherImpulse * normalY;
+
                     other.x += overlap * normalX * thisMassProportion;
                     other.y += overlap * normalY * thisMassProportion;
                     other.velocityX -= thisImpulse * normalX;
                     other.velocityY -= thisImpulse * normalY;
-                    if (!this.isRoot) {
-                        this.x -= overlap * normalX * otherMassProportion;
-                        this.y -= overlap * normalY * otherMassProportion;
-                        this.velocityX += otherImpulse * normalX;
-                        this.velocityY += otherImpulse * normalY;
-                    }
                 }
             }
 
             generateChildren(levelsLeft) {
-                const color = ["red", "orange", "yellow", "green", "blue", "purple"][levelsLeft];
+                //const color = ["red", "orange", "yellow", "green", "blue", "purple"][levelsLeft];
+                const color = "white";
                 for (let n = 0; n < 10; n++) {
                     const childBall = new Ball(this.x, this.y, this.radius / 5, color, false);
-                    childBall.velocityX = Math.random() * 5;
-                    childBall.velocityY = Math.random() * 5;
+                    childBall.velocityX = Math.random() * 5 - (5 / 2);
+                    childBall.velocityY = Math.random() * 5 - (5 / 2);
                     this.childBalls.push(childBall);
-                    if (levelsLeft > 0)
+                    if (levelsLeft > 1)
                       childBall.generateChildren(levelsLeft - 1);
                 }
             }
 
             drawThisAndChildren(parent) {
+                this.draw();
+                for (const childBall of this.childBalls) {
+                    childBall.drawThisAndChildren(this);
+                }
+            }
+
+            draw() {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 ctx.strokeStyle = this.color;
                 ctx.lineWidth = 1;
                 ctx.stroke();
                 ctx.closePath();
-
-                for (const childBall of this.childBalls) {
-                    childBall.drawThisAndChildren(this);
-                }
             }
         }
 
         const mainBall = new Ball(canvas.width / 2, canvas.height / 2, canvas.height / 2, "white", true);
         mainBall.velocityX = 0;
         mainBall.velocityY = 0;
-        mainBall.generateChildren(2);
+        mainBall.generateChildren(3);
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
