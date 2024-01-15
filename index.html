@@ -82,7 +82,7 @@
             }
 
             handleCollision(other, isParent) {
-                const energyConserved = 0.80;
+                const energyConserved = 0.99;
 
                 const dx = other.x - this.x;
                 const dy = other.y - this.y;
@@ -102,8 +102,8 @@
                     return;
                 if (!isParent && relativeVelocityInNormalDirection > 0)
                     return;
-                //if (this.isRoot) {
-                if (isParent) {
+                if (this.isRoot) {
+                //if (isParent) {
                     const thisMass = Math.PI * this.radius * this.radius;
                     const otherMass = Math.PI * other.radius * other.radius;
                     const massSum = thisMass + otherMass;
@@ -139,7 +139,7 @@
             generateChildren(levelsLeft) {
                 //const color = ["red", "orange", "yellow", "green", "blue", "purple"][levelsLeft];
                 const color = "#333333";
-                for (let n = 0; n < 30; n++) {
+                for (let n = 0; n < 10; n++) {                                                                          
                     const childBall = new Ball(this.x, this.y, this.radius / 7, color, false);
                     childBall.velocityX = (Math.random() - 0.5) * 10;
                     childBall.velocityY = (Math.random() - 0.5) * 10;
@@ -162,6 +162,15 @@
                 ctx.strokeStyle = this.color;
                 ctx.lineWidth = 1;
                 ctx.stroke();
+                ctx.closePath();
+
+                const angle = 0;
+                const dotX = this.x + this.radius * Math.cos(angle);
+                const dotY = this.y + this.radius * Math.sin(angle);
+                ctx.beginPath();
+                ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
+                ctx.fillStyle = 'red';
+                ctx.fill();
                 ctx.closePath();
             }
         }
@@ -186,8 +195,8 @@
                 const normalizedDy = dy / length * strength;
 
                 // Set the velocity based on the direction
-                mainBall.velocityX = normalizedDx * 10; // Adjust the speed as needed
-                mainBall.velocityY = normalizedDy * 10; // Adjust the speed as needed
+                mainBall.velocityX += normalizedDx; // Adjust the speed as needed
+                mainBall.velocityY += normalizedDy; // Adjust the speed as needed
             }
 
             mainBall.update();
