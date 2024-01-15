@@ -158,7 +158,8 @@
                 // nodes on the inside
                 for (let n = 0; n < nodeCount; n++) {
                     const angle = Math.random() * Math.PI * 2;
-                    const magnitude = Math.random() * this.radius;
+                    const magnitudeProportion = Math.random();
+                    const magnitude = (1 - magnitudeProportion * magnitudeProportion) * this.radius;
                     const nodeX = Math.cos(angle) * magnitude;
                     const nodeY = Math.sin(angle) * magnitude;
                     const node = new Node(nodeX, nodeY);
@@ -201,11 +202,16 @@
                 const dx = other.x - this.x;
                 const dy = other.y - this.y;
                 const distance = Math.sqrt(dx * dx + dy * dy) - other.radius - this.radius;
-                const maxDistance = 200;
+                const maxDistance = 500;
                 if (distance > maxDistance)
                     return;
+                if (distance < 0 && other !== mouseBall) {
+                    this.removeElementFromArray(allBalls, other);
+                    createBalls(other.color, 1);
+                    return;
+                }
                 const angle = Math.atan2(dy, dx);
-                const magnitude = 1 - distance / maxDistance;
+                const magnitude = 1 - distance / maxDistance * Math.sqrt(other.radius);
                 const outlineNodeCount = Object.keys(this.outlineNodes).length;
                 const outlineIndex = Math.floor((angle + Math.PI * 2) / (Math.PI * 2) * outlineNodeCount);
                 const outlineNode = this.outlineNodes[outlineIndex % outlineNodeCount];
@@ -242,23 +248,19 @@
                                 continue;
                             this.removeElementFromArray(edgesUnexplored, nextEdge);
                             
-                            //const proportionToStore = 0.1;
-                            //const strengthToStore = Math.min(1 - currentStrength, edgeToExplore[2] * proportionToStore);
-                            //const strengthToContinue = edgeToExplore[2] - strengthToStore;
-                            
-                            //const currentEdgeStrength = nextEdge.energies[energyType].strength;
                             const currentStrength = nextEdge.energies[energyType].strength;
                             const strengthToSend = currentStrength / totalNearbyEnergy * edgeToExplore[2];
                             const proportionToStore = 0.01;
                             const strengthToStore = strengthToSend * proportionToStore;
                             const strengthToContinue = strengthToSend - strengthToStore;
                             nextEdge.storeEnergy(energyType, strengthToStore, this.iteration);
-                            //const proportionToStore = 0.1;
-                            //const strengthToStore = (currentStrength / totalNearbyEnergy);
-                            //const strengthToContinue = edgeToExplore[2] - strengthToStore;
-                            //nextEdge.energies[energyType].strength += strengthToStore / 10;
-                            //nextEdge.iterationChanged = this.iteration;
                             newEdgesToExplore.push([nextNode, nextEdge, strengthToContinue]);
+                        }
+                        if (this.containsValue(this.outlineNodes, nextNode)) {
+                            const impulseStrength = edgeToExplore[2] / 3;
+                            const angle = Math.atan2(nextNode.y, nextNode.x);
+                            this.velocityX += Math.cos(angle) * impulseStrength;
+                            this.velocityY += Math.sin(angle) * impulseStrength;
                         }
                     }
                     edgesToExplore = newEdgesToExplore;
@@ -299,8 +301,8 @@
             }
 
             update() {
-                this.velocityX *= 0.99;
-                this.velocityY *= 0.99;
+                this.velocityX *= 0.90;
+                this.velocityY *= 0.90;
                 this.x += this.velocityX;
                 this.y += this.velocityY;
             }
@@ -331,16 +333,20 @@
             }
         }
 
-        const mainBall = new Ball(0, 0, canvas.height / 4, "#ffffff", 20);
+        const mainBall = new Ball(0, 0, 30, "#ffffff", 50);
         const allBalls = [mainBall];
-        for (let n = 0; n < 10; n++) {
-            const radius = Math.random() * 5 + 5;
-            const angle = Math.random() * Math.PI * 2;
-            const magnitude = Math.random() * 300 + mainBall.radius + radius;
-            const ball = new Ball(Math.cos(angle) * magnitude, Math.sin(angle) * magnitude, radius, getRandomHexColor(), 0);
-            allBalls.push(ball);
+        function createBalls(color, num) {
+            for (let n = 0; n < num; n++) {
+                const radius = Math.random() * 1 + 1;
+                const angle = Math.random() * Math.PI * 2;
+                const magnitude = Math.random() * 300 + mainBall.radius + radius;
+                const ball = new Ball(Math.cos(angle) * magnitude, Math.sin(angle) * magnitude, radius, color, 0);
+                allBalls.push(ball);
+            }
         }
-        const mouseBall = new Ball(0, 0, 10, "#ff0000", 0);
+        createBalls("#ff0000", 10);
+        createBalls("#0000ff", 50);
+        const mouseBall = new Ball(0, 0, 10, "#ffffff", 0);
         allBalls.push(mouseBall);
         
         function animate() {
@@ -348,11 +354,8 @@
 
             let mouseBallX = mouseX - canvas.width / 2;
             let mouseBallY = mouseY - canvas.height / 2;
-            const mouseBallAngle = Math.atan2(mouseBallY, mouseBallX);
-            let magnitude = Math.sqrt(mouseBallX * mouseBallX + mouseBallY * mouseBallY);
-            magnitude = Math.max(magnitude, mainBall.radius + mouseBall.radius);
-            mouseBall.x = Math.cos(mouseBallAngle) * magnitude;
-            mouseBall.y = Math.sin(mouseBallAngle) * magnitude;
+            mouseBall.x = mouseBallX;
+            mouseBall.y = mouseBallY;
 
             for (const ball of allBalls) {
                 if (ball === mainBall)
