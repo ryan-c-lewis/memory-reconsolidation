@@ -11,10 +11,16 @@
 <body style="background-color: black; margin: 0; overflow: hidden;">
     <canvas id="canvas"></canvas>
     <script>
-        const MAX_SIGHT = 200;
-        const BLUE_BALL_COUNT = 100;
-        const RED_BALL_COUNT = 20;
+        const MAX_SIGHT = 100;
+        const MAIN_BALL_SIZE = 10;
+        const MOUSE_BALL_SIZE = 1;
+        const NETWORK_SIZE = 50;
+        const BLUE_BALL_COUNT = 50;
+        const RED_BALL_COUNT = 50;
         const ACCELERATION = 0.1;
+        const PERCENT_ENERGY_TO_STORE = 0.10;
+        const ENERGY_DECAY = 0.001;
+        const MIN_NETWORK_VISIBILITY = 0.01;
 
         const NETWORK_SEE_RED = "R";
         const NETWORK_SEE_GREEN = "G";
@@ -62,6 +68,7 @@
             }
 
             draw(parentBall) {
+                /*
                 const x = canvas.width / 2 + parentBall.x + this.x;
                 const y = canvas.height / 2 + parentBall.y + this.y;
                 ctx.beginPath();
@@ -69,6 +76,7 @@
                 ctx.fillStyle = this.color;
                 ctx.fill();
                 ctx.closePath();
+                */
             }
         }
 
@@ -105,15 +113,17 @@
                 let g = Math.floor(this.energies[NETWORK_SEE_GREEN].strength * 255);
                 let b = Math.floor(this.energies[NETWORK_SEE_BLUE].strength * 255);
 
-                const min = 20;
+                const min = 255 * MIN_NETWORK_VISIBILITY;
                 r = (r / 255) * (255 - min) + min;
                 g = (g / 255) * (255 - min) + min;
                 b = (b / 255) * (255 - min) + min;
 
                 ctx.strokeStyle = this.rgbToHex(r, g, b);
                 ctx.lineWidth = 1;
-                //if (this.iterationChanged === parentBall.iteration)
+                //if (this.iterationChanged === parentBall.iteration) {
+                //    ctx.strokeStyle = "#ffffff";
                 //    ctx.lineWidth = 5;
+                //}
                 ctx.stroke();
                 ctx.closePath();
             }
@@ -128,10 +138,10 @@
         }
 
         class EdgeLookup {
-            constructor(edges) {
+            constructor(allEdges) {
                 this.lookupTable = {};
                 this.edges = [];
-                for (const edge of this.edges)
+                for (const edge of allEdges)
                     this.addEdge(edge);
             }
 
@@ -196,7 +206,7 @@
 
                 // nodes on the inside
                 for (let n = 0; n < nodeCount; n++) {
-                    const angle = n / 10 * Math.PI * 2;
+                    const angle = n / 10 * Math.PI * 2 + Math.random() / 5;
                     const magnitudeProportion = (n / nodeCount);
                     const magnitude = (1 - magnitudeProportion * magnitudeProportion) * this.radius;
                     const nodeX = Math.cos(angle) * magnitude;
@@ -239,7 +249,7 @@
                 const dy = other.y - this.y;
                 const distanceSquared = dx * dx + dy * dy;
 
-                if (distanceSquared > MAX_SIGHT * MAX_SIGHT) return;
+                if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) return;
                 
                 if (distanceSquared < (this.radius + other.radius) * (this.radius + other.radius) && other !== mouseBall) {
                     this.removeElementFromArray(allBalls, other);
@@ -311,7 +321,7 @@
             processEnergy(energyType, nextEdge, totalNearbyEnergy, strength) {
                 const currentStrength = nextEdge.energies[energyType].strength;
                 const energyToSend = currentStrength / totalNearbyEnergy * strength;
-                const proportionToStore = 0.01;
+                const proportionToStore = PERCENT_ENERGY_TO_STORE;
                 const energyToStore = energyToSend * proportionToStore;
                 nextEdge.storeEnergy(energyType, energyToStore, this.iteration);
                 return energyToSend - energyToStore;
@@ -392,7 +402,7 @@
             }
         }
 
-        const mainBall = new Ball(0, 0, 30, "#ffffff", 50, true);
+        const mainBall = new Ball(0, 0, MAIN_BALL_SIZE, "#ffffff", NETWORK_SIZE, true);
         const allBalls = [mainBall];
         function createBalls(color, num) {
             for (let n = 0; n < num; n++) {
@@ -405,7 +415,7 @@
         }
         createBalls("#0000ff", BLUE_BALL_COUNT);
         createBalls("#ff0000", RED_BALL_COUNT);
-        const mouseBall = new Ball(0, 0, 30, "#ffffff", 0, false);
+        const mouseBall = new Ball(0, 0, MOUSE_BALL_SIZE, "#ffffff", 0, false);
         allBalls.push(mouseBall);
         
         function animate() {
