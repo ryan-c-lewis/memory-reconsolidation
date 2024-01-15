@@ -100,6 +100,13 @@
                     this.energies[energyType].strength = 1;
             }
 
+            decayEnergy() {
+                for (const energyType of energyTypes) {
+                    const energy = this.energies[energyType];
+                    energy.strength *= (1 - ENERGY_DECAY);
+                }
+            }
+
             draw(parentBall) {
                 const x1 = canvas.width / 2 + parentBall.x + this.node1.x;
                 const y1 = canvas.height / 2 + parentBall.y + this.node1.y;
@@ -372,6 +379,8 @@
                 this.velocityY *= 0.90;
                 this.x += this.velocityX;
                 this.y += this.velocityY;
+                for (const edge of this.edges)
+                    edge.decayEnergy();
             }
 
             draw() {
