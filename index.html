@@ -40,11 +40,20 @@
         }
 
         class Node {
-            constructor(x, y) {
+            constructor(x, y, isOutline) {
                 this.x = x;
                 this.y = y;
                 this.color = "#333333";
                 this.edges = [];
+                this.isOutline = isOutline;
+            }
+
+            getNearbyEnergy(energyType) {
+                let totalNearbyEnergy = 0;
+                for (const nextEdge of this.edges) {
+                    totalNearbyEnergy += nextEdge.energies[energyType].strength;
+                }
+                return totalNearbyEnergy;
             }
 
             draw(parentBall) {
@@ -150,7 +159,7 @@
                     const magnitude = this.radius;
                     const nodeX = Math.cos(angle) * magnitude;
                     const nodeY = Math.sin(angle) * magnitude;
-                    const node = new Node(nodeX, nodeY);
+                    const node = new Node(nodeX, nodeY, true);
                     this.nodes.push(node);
                     this.outlineNodes[n] = node;
                 }
@@ -162,7 +171,7 @@
                     const magnitude = (1 - magnitudeProportion * magnitudeProportion) * this.radius;
                     const nodeX = Math.cos(angle) * magnitude;
                     const nodeY = Math.sin(angle) * magnitude;
-                    const node = new Node(nodeX, nodeY);
+                    const node = new Node(nodeX, nodeY, false);
                     this.nodes.push(node);
                     this.innerNodes.push(node);
                 }
@@ -196,19 +205,19 @@
             processInput(other) {
                 const dx = other.x - this.x;
                 const dy = other.y - this.y;
-                const distance = Math.sqrt(dx * dx + dy * dy) - other.radius - this.radius;
+                const distanceSquared = dx * dx + dy * dy;
 
                 const maxDistance = 500;
-                if (distance > maxDistance) return;
+                if (distanceSquared > maxDistance * maxDistance) return;
                 
-                if (distance < 0 && other !== mouseBall) {
+                if (distanceSquared < (this.radius + other.radius) * (this.radius + other.radius) && other !== mouseBall) {
                     this.removeElementFromArray(allBalls, other);
                     createBalls(other.color, 1);
                     return;
                 }
 
                 const angle = Math.atan2(dy, dx);
-                const magnitude = 1 - distance / maxDistance * Math.sqrt(other.radius);
+                const magnitude = 1 - Math.sqrt(distanceSquared) / maxDistance * Math.sqrt(other.radius);
                 const outlineNodeCount = Object.keys(this.outlineNodes).length;
                 const outlineIndex = Math.floor((angle + Math.PI * 2) / (Math.PI * 2) * outlineNodeCount);
                 const outlineNode = this.outlineNodes[outlineIndex % outlineNodeCount];
@@ -235,10 +244,7 @@
                         const nextNode = edgeToExplore[1].node1 === edgeToExplore[0]
                             ? edgeToExplore[1].node2
                             : edgeToExplore[1].node1;
-                        let totalNearbyEnergy = 0;
-                        for (const nextEdge of nextNode.edges) {
-                            totalNearbyEnergy += nextEdge.energies[energyType].strength;
-                        }
+                        let totalNearbyEnergy = nextNode.getNearbyEnergy(energyType);
                         for (const nextEdge of nextNode.edges) {
                             if (nextEdge === edgeToExplore)
                                 continue;
@@ -246,23 +252,31 @@
                                 continue;
                             this.removeElementFromArray(edgesUnexplored, nextEdge);
                             
-                            const currentStrength = nextEdge.energies[energyType].strength;
-                            const strengthToSend = currentStrength / totalNearbyEnergy * edgeToExplore[2];
-                            const proportionToStore = 0.01;
-                            const strengthToStore = strengthToSend * proportionToStore;
-                            const strengthToContinue = strengthToSend - strengthToStore;
-                            nextEdge.storeEnergy(energyType, strengthToStore, this.iteration);
-                            newEdgesToExplore.push([nextNode, nextEdge, strengthToContinue]);
+                            const remainingEnergy = this.processEnergy(energyType, nextEdge, totalNearbyEnergy, edgeToExplore[2]);
+                            newEdgesToExplore.push([nextNode, nextEdge, remainingEnergy]);
                         }
-                        if (this.containsValue(this.outlineNodes, nextNode)) {
-                            const impulseStrength = edgeToExplore[2] / 3;
-                            const angle = Math.atan2(nextNode.y, nextNode.x);
-                            this.velocityX += Math.cos(angle) * impulseStrength;
-                            this.velocityY += Math.sin(angle) * impulseStrength;
+                        if (nextNode.isOutline) {
+                            this.triggerOutput(nextNode, edgeToExplore[2]);
                         }
                     }
                     edgesToExplore = newEdgesToExplore;
                 }
+            }
+
+            processEnergy(energyType, nextEdge, totalNearbyEnergy, strength) {
+                const currentStrength = nextEdge.energies[energyType].strength;
+                const energyToSend = currentStrength / totalNearbyEnergy * strength;
+                const proportionToStore = 0.01;
+                const energyToStore = energyToSend * proportionToStore;
+                nextEdge.storeEnergy(energyType, energyToStore, this.iteration);
+                return energyToSend - energyToStore;
+            }
+
+            triggerOutput(node, strength) {
+                const impulseStrength = strength / 3;
+                const angle = Math.atan2(node.y, node.x);
+                this.velocityX += Math.cos(angle) * impulseStrength;
+                this.velocityY += Math.sin(angle) * impulseStrength;
             }
 
             hexToR(hex) {
