@@ -68,7 +68,8 @@
         }
 
         class Edge {
-            constructor(node1, node2) {
+            constructor(id, node1, node2) {
+                this.id = id;
                 this.node1 = node1;
                 this.node2 = node2;
                 this.color = "#333333";
@@ -130,6 +131,38 @@
             }
         }
 
+        class EdgeLookup {
+            constructor(edges) {
+                this.lookupTable = {};
+                this.edges = [];
+                for (const edge of this.edges)
+                    this.addEdge(edge);
+            }
+
+            addEdge(edge) {
+                const id = edge.id;
+                if (!this.lookupTable[id]) {
+                    this.lookupTable[id] = edge;
+                    this.edges.push(edge);
+                }
+            }
+
+            containsEdge(edge) {
+                return !!this.lookupTable[edge.id];
+            }
+
+            removeEdge(edge) {
+                const id = edge.id;
+                if (this.lookupTable[id]) {
+                    delete this.lookupTable[id];
+                    const index = this.edges.indexOf(edge);
+                    if (index !== -1) {
+                        this.edges.splice(index, 1);
+                    }
+                }
+            }
+        }
+
         class Energy {
             constructor() {
                 this.strength = 0.01;
@@ -176,6 +209,7 @@
                     this.innerNodes.push(node);
                 }
 
+                let edgeId = 0;
                 for (let i = 0; i < this.nodes.length; i++) {
                     for (let j = i + 1; j < this.nodes.length; j++) {
                         const node1 = this.nodes[i];
@@ -184,7 +218,8 @@
                         const distance = Math.sqrt((node1.x - node2.x) ** 2 + (node1.y - node2.y) ** 2);
                         const distanceThreshold = this.radius / 2;
                         if (distance < distanceThreshold) {
-                            const edge = new Edge(node1, node2);
+                            const edge = new Edge(edgeId, node1, node2);
+                            edgeId++;
                             this.edges.push(edge);
                             node1.edges.push(edge);
                             node2.edges.push(edge);
@@ -233,34 +268,48 @@
 
             resolve(energyType, startingNode, strength) {
                 this.iteration++;
-                let edgesUnexplored = [...this.edges];
+                let edgesToExplore = this.getInitialEdgesToExplore(startingNode, strength);
+                let edgesUnexplored = new EdgeLookup(this.edges);
+                while (edgesToExplore.length > 0) {
+                    let newEdgesToExplore = this.exploreEdges(energyType, edgesToExplore, edgesUnexplored);
+                    edgesToExplore = newEdgesToExplore;
+                }
+            }
+
+            getInitialEdgesToExplore(startingNode, strength) {
                 let edgesToExplore = [];
                 for (const edge of startingNode.edges) {
                     edgesToExplore.push([startingNode, edge, strength / startingNode.edges.length]);
                 }
-                while (edgesToExplore.length > 0) {
-                    let newEdgesToExplore = [];
-                    for (const edgeToExplore of edgesToExplore) {
-                        const nextNode = edgeToExplore[1].node1 === edgeToExplore[0]
-                            ? edgeToExplore[1].node2
-                            : edgeToExplore[1].node1;
-                        let totalNearbyEnergy = nextNode.getNearbyEnergy(energyType);
-                        for (const nextEdge of nextNode.edges) {
-                            if (nextEdge === edgeToExplore)
-                                continue;
-                            if (!edgesUnexplored.includes(nextEdge))
-                                continue;
-                            this.removeElementFromArray(edgesUnexplored, nextEdge);
-                            
-                            const remainingEnergy = this.processEnergy(energyType, nextEdge, totalNearbyEnergy, edgeToExplore[2]);
-                            newEdgesToExplore.push([nextNode, nextEdge, remainingEnergy]);
-                        }
-                        if (nextNode.isOutline) {
-                            this.triggerOutput(nextNode, edgeToExplore[2]);
-                        }
+                return edgesToExplore;
+            }
+
+            exploreEdges(energyType, edgesToExplore, edgesUnexplored) {
+                let newEdgesToExplore = [];
+                for (const edgeToExplore of edgesToExplore) {
+                    const nextNode = edgeToExplore[1].node1 === edgeToExplore[0]
+                        ? edgeToExplore[1].node2
+                        : edgeToExplore[1].node1;
+                    let totalNearbyEnergy = nextNode.getNearbyEnergy(energyType);
+                    for (const nextEdge of nextNode.edges) {
+                        if (nextEdge === edgeToExplore)
+                            continue;
+                        if (!edgesUnexplored.containsEdge(nextEdge))
+                            continue;
+                        edgesUnexplored.removeEdge(nextEdge);
+                        
+                        const remainingEnergy = this.processEnergy(energyType, nextEdge, totalNearbyEnergy, edgeToExplore[2]);
+                        newEdgesToExplore.push([nextNode, nextEdge, remainingEnergy]);
                     }
-                    edgesToExplore = newEdgesToExplore;
+                    if (nextNode.isOutline) {
+                        this.triggerOutput(nextNode, edgeToExplore[2]);
+                    }
                 }
+                return newEdgesToExplore;
+            }
+
+            edgeIsUnexplored(edge, edgesUnexplored) {
+                return edgesUnexplored.includes(edge);
             }
 
             processEnergy(energyType, nextEdge, totalNearbyEnergy, strength) {
