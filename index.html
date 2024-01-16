@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Memory Reconsolidation Visualizer</title>
+    <title>Game of Attention</title>
     <style>
         canvas {
             border: 1px solid #000;
@@ -14,18 +14,22 @@
         const MAX_SIGHT = 100;
         const MAIN_BALL_SIZE = 10;
         const MOUSE_BALL_SIZE = 1;
-        const NETWORK_SIZE = 50;
+        const NETWORK_SIZE = 100;
         const BLUE_BALL_COUNT = 50;
         const RED_BALL_COUNT = 50;
-        const ACCELERATION = 0.1;
+        const ACCELERATION = 0.2;
         const PERCENT_ENERGY_TO_STORE = 0.10;
-        const ENERGY_DECAY = 0.001;
-        const MIN_NETWORK_VISIBILITY = 0.01;
+        const ENERGY_DECAY = 0.0;
+        const MIN_NETWORK_VISIBILITY = 0.30;
 
         const NETWORK_SEE_RED = "R";
         const NETWORK_SEE_GREEN = "G";
         const NETWORK_SEE_BLUE = "B";
         const energyTypes = [NETWORK_SEE_RED, NETWORK_SEE_GREEN, NETWORK_SEE_BLUE];
+
+        const MODE_EXTERNAL = "E";
+        const MODE_INTERNAL = "I";
+        let currentMode = MODE_EXTERNAL;
 
         const canvas = document.getElementById("canvas");
         const ctx = canvas.getContext("2d");
@@ -42,6 +46,34 @@
             mouseX = event.clientX - canvas.getBoundingClientRect().left;
             mouseY = event.clientY - canvas.getBoundingClientRect().top;
         });
+        canvas.addEventListener("touchmove", (event) => {
+            mouseX = event.touches[0].clientX - canvas.getBoundingClientRect().left;
+            mouseY = event.touches[0].clientY - canvas.getBoundingClientRect().top;
+        });
+        canvas.addEventListener("click", (event) => {
+            if (currentMode === MODE_EXTERNAL)
+                transitionToInternalMode();
+            else if (currentMode === MODE_INTERNAL)
+                transitionToExternalMode();
+        });
+
+        let externalModeX = 0;
+        let externalModeY = 0;
+        function transitionToInternalMode() {
+            currentMode = MODE_INTERNAL;
+            externalModeX = mainBall.x;
+            externalModeY = mainBall.y;
+            mainBall.velocityX = 0;
+            mainBall.velocityY = 0;
+            mainBall.radius = Math.min(canvas.width, canvas.height) / 2.5;
+        }
+
+        function transitionToExternalMode() {
+            currentMode = MODE_EXTERNAL;
+            mainBall.x = externalModeX;
+            mainBall.y = externalModeY;
+            mainBall.radius = MAIN_BALL_SIZE;
+        }
 
         class Vector {
             constructor(angle, magnitude) {
@@ -69,8 +101,8 @@
 
             draw(parentBall) {
                 /*
-                const x = canvas.width / 2 + parentBall.x + this.x;
-                const y = canvas.height / 2 + parentBall.y + this.y;
+                const x = canvas.width / 2 + parentBall.x + this.x * parentBall.radius;
+                const y = canvas.height / 2 + parentBall.y + this.y * parentBall.radius;
                 ctx.beginPath();
                 ctx.arc(x, y, 3, 0, Math.PI * 2);
                 ctx.fillStyle = this.color;
@@ -108,31 +140,33 @@
             }
 
             draw(parentBall) {
-                const x1 = canvas.width / 2 + parentBall.x + this.node1.x;
-                const y1 = canvas.height / 2 + parentBall.y + this.node1.y;
-                const x2 = canvas.width / 2 + parentBall.x + this.node2.x;
-                const y2 = canvas.height / 2 + parentBall.y + this.node2.y;
+                if (currentMode === MODE_INTERNAL) {
+                    const x1 = canvas.width / 2 + parentBall.x + this.node1.x * parentBall.radius;
+                    const y1 = canvas.height / 2 + parentBall.y + this.node1.y * parentBall.radius;
+                    const x2 = canvas.width / 2 + parentBall.x + this.node2.x * parentBall.radius;
+                    const y2 = canvas.height / 2 + parentBall.y + this.node2.y * parentBall.radius;
 
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
-                let r = Math.floor(this.energies[NETWORK_SEE_RED].strength * 255);
-                let g = Math.floor(this.energies[NETWORK_SEE_GREEN].strength * 255);
-                let b = Math.floor(this.energies[NETWORK_SEE_BLUE].strength * 255);
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    let r = Math.floor(this.energies[NETWORK_SEE_RED].strength * 255);
+                    let g = Math.floor(this.energies[NETWORK_SEE_GREEN].strength * 255);
+                    let b = Math.floor(this.energies[NETWORK_SEE_BLUE].strength * 255);
 
-                const min = 255 * MIN_NETWORK_VISIBILITY;
-                r = (r / 255) * (255 - min) + min;
-                g = (g / 255) * (255 - min) + min;
-                b = (b / 255) * (255 - min) + min;
+                    const min = 255 * MIN_NETWORK_VISIBILITY;
+                    r = (r / 255) * (255 - min) + min;
+                    g = (g / 255) * (255 - min) + min;
+                    b = (b / 255) * (255 - min) + min;
 
-                ctx.strokeStyle = this.rgbToHex(r, g, b);
-                ctx.lineWidth = 1;
-                //if (this.iterationChanged === parentBall.iteration) {
-                //    ctx.strokeStyle = "#ffffff";
-                //    ctx.lineWidth = 5;
-                //}
-                ctx.stroke();
-                ctx.closePath();
+                    ctx.strokeStyle = this.rgbToHex(r, g, b);
+                    ctx.lineWidth = 1;
+                    //if (currentMode === MODE_INTERNAL && this.iterationChanged === parentBall.iteration) {
+                    //    ctx.strokeStyle = "#ffffff";
+                    //    ctx.lineWidth = 5;
+                    //}
+                    ctx.stroke();
+                    ctx.closePath();
+                }
             }
 
             rgbToHex(r, g, b) {
@@ -203,7 +237,7 @@
                 // nodes on the outline
                 for (let n = 0; n < nodeCount; n++) {
                     const angle = (n / nodeCount) * Math.PI * 2;
-                    const magnitude = this.radius;
+                    const magnitude = 1;
                     const nodeX = Math.cos(angle) * magnitude;
                     const nodeY = Math.sin(angle) * magnitude;
                     const node = new Node(nodeX, nodeY, true);
@@ -212,17 +246,31 @@
                 }
 
                 // nodes on the inside
-                for (let n = 0; n < nodeCount; n++) {
-                    const angle = n / 10 * Math.PI * 2 + Math.random() / 5;
+                /*for (let n = 0; n < nodeCount; n++) {
+                    const angle = n / 10 * Math.PI * 2;
                     const magnitudeProportion = (n / nodeCount);
-                    const magnitude = (1 - magnitudeProportion * magnitudeProportion) * this.radius;
+                    const magnitude = (1 - magnitudeProportion * magnitudeProportion) * 1;
                     const nodeX = Math.cos(angle) * magnitude;
                     const nodeY = Math.sin(angle) * magnitude;
                     const node = new Node(nodeX, nodeY, false);
                     this.nodes.push(node);
                     this.innerNodes.push(node);
+                }*/
+                for (let n = 0; n < nodeCount; n++) {
+                    const angle = Math.random() * Math.PI * 2; // Uniform distribution of angle
+                    //const angle = n / 10 * Math.PI * 2;
+                    const radius = Math.sqrt(Math.random()) * 0.8;
+
+                    const nodeX = Math.cos(angle) * radius;
+                    const nodeY = Math.sin(angle) * radius;
+
+                    const node = new Node(nodeX, nodeY, false);
+                    this.nodes.push(node);
+                    this.innerNodes.push(node);
                 }
 
+
+                /*
                 let edgeId = 0;
                 for (let i = 0; i < this.nodes.length; i++) {
                     for (let j = i + 1; j < this.nodes.length; j++) {
@@ -230,7 +278,7 @@
                         const node2 = this.nodes[j];
                         if (node1 === node2) continue;
                         const distance = Math.sqrt((node1.x - node2.x) ** 2 + (node1.y - node2.y) ** 2);
-                        const distanceThreshold = this.radius / 2;
+                        const distanceThreshold = 1 / 2;
                         if (distance < distanceThreshold) {
                             const edge = new Edge(edgeId, node1, node2);
                             edgeId++;
@@ -240,6 +288,37 @@
                         }
                     }
                 }
+                */
+
+                let edgeId = 0;
+                const N = 5; // Change this value to set the number of closest nodes you want to connect with
+                for (let i = 0; i < this.nodes.length; i++) {
+                    const node1 = this.nodes[i];
+                    let distances = [];
+
+                    for (let j = 0; j < this.nodes.length; j++) {
+                        if (i === j)
+                            continue;
+                        if (this.nodes[i].isOutline && this.nodes[j].isOutline)
+                            continue;
+                        const node2 = this.nodes[j];
+                        const distance = Math.sqrt((node1.x - node2.x) ** 2 + (node1.y - node2.y) ** 2);
+                        distances.push({ node: node2, distance: distance });
+                    }
+
+                    // Sort the distances array by distance
+                    distances.sort((a, b) => a.distance - b.distance);
+
+                    // Connect to the N closest nodes
+                    for (let k = 0; k < Math.min(N, distances.length); k++) {
+                        const edge = new Edge(edgeId, node1, distances[k].node);
+                        edgeId++;
+                        this.edges.push(edge);
+                        node1.edges.push(edge);
+                        distances[k].node.edges.push(edge);
+                    }
+                }
+
             }
 
             containsValue(obj, searchValue) {
@@ -300,9 +379,7 @@
             exploreEdges(energyType, edgesToExplore, edgesUnexplored) {
                 let newEdgesToExplore = [];
                 for (const edgeToExplore of edgesToExplore) {
-                    const nextNode = edgeToExplore[1].node1 === edgeToExplore[0]
-                        ? edgeToExplore[1].node2
-                        : edgeToExplore[1].node1;
+                    const nextNode = this.getOtherNode(edgeToExplore[0], edgeToExplore[1]);
                     let totalNearbyEnergy = nextNode.getNearbyEnergy(energyType);
                     for (const nextEdge of nextNode.edges) {
                         if (nextEdge === edgeToExplore)
@@ -319,6 +396,12 @@
                     }
                 }
                 return newEdgesToExplore;
+            }
+
+            getOtherNode(currentNode, edge) {
+                if (edge.node1 === currentNode)
+                    return edge.node2;
+                return edge.node1;
             }
 
             edgeIsUnexplored(edge, edgesUnexplored) {
@@ -405,7 +488,7 @@
                     ctx.fillStyle = this.color;
                     ctx.fill();
                 }
-                ctx.lineWidth = 1;
+                ctx.lineWidth = 3;
                 ctx.stroke();
                 ctx.closePath();
             }
@@ -424,12 +507,21 @@
         }
         createBalls("#0000ff", BLUE_BALL_COUNT);
         createBalls("#ff0000", RED_BALL_COUNT);
-        const mouseBall = new Ball(0, 0, MOUSE_BALL_SIZE, "#ffffff", 0, false);
+        const mouseBall = new Ball(0, 0, MOUSE_BALL_SIZE, "#ffffff", 0, true);
         allBalls.push(mouseBall);
         
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            if (currentMode === MODE_EXTERNAL)
+                animateExternalMode();
+            else if (currentMode === MODE_INTERNAL)
+                animateInternalMode();
+
+            requestAnimationFrame(animate);
+        }
+
+        function animateExternalMode() {
             let mouseBallX = mouseX - canvas.width / 2;
             let mouseBallY = mouseY - canvas.height / 2;
             mouseBall.x = mouseBallX;
@@ -445,8 +537,22 @@
                 ball.update();
                 ball.draw();
             }
+        }
 
-            requestAnimationFrame(animate);
+        function animateInternalMode() {
+            let mouseBallX = mouseX - canvas.width / 2;
+            let mouseBallY = mouseY - canvas.height / 2;
+            mouseBall.x = mouseBallX;
+            mouseBall.y = mouseBallY;
+            mainBall.processInput(mouseBall);
+            mainBall.x = 0;
+            mainBall.y = 0;
+            mainBall.velocityX = 0;
+            mainBall.velocityY = 0;
+            for (const ball of [mainBall, mouseBall]) {
+                ball.update();
+                ball.draw();
+            }
         }
 
         function getRandomHexColor() {
