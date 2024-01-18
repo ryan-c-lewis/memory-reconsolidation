@@ -83,7 +83,7 @@
             externalModeY = mainBall.y;
             mainBall.velocityX = 0;
             mainBall.velocityY = 0;
-            mainBall.radius = Math.min(canvas.width, canvas.height) / 5;
+            mainBall.radius = Math.min(canvas.width, canvas.height) / 3;
         }
 
         function transitionToExternalMode() {
@@ -529,10 +529,15 @@
 
         function animateInternalMode() {
             mainBall.y = 0;
-            mainBall.x = -canvas.width / 4;
+            mainBall.x = -canvas.width / 2 / 3;
             mainBall.drawWithNetwork(PLEASURE);
-            mainBall.x = canvas.width / 4;
+            mainBall.x = canvas.width / 2 / 3;
             mainBall.drawWithNetwork(PAIN);
+
+            ctx.font = '24px Arial';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('PLEASURE', canvas.width / 2 - canvas.width / 2 / 3 - ctx.measureText('PLEASURE').width / 2, canvas.height / 2 - mainBall.radius - 20);
+            ctx.fillText('PAIN', canvas.width / 2 + canvas.width / 2 / 3 - ctx.measureText('PAIN').width / 2, canvas.height / 2 - mainBall.radius - 20);
         }
 
         function getRandomHexColor() {
