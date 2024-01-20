@@ -10,7 +10,34 @@
 </head>
 <body style="background-color: black; margin: 0; overflow: hidden;">
     <canvas id="canvas"></canvas>
-    <script>
+    <script> 
+
+        // Fundamental features I want to be able to represent:
+        // - It moves around on its own
+        // - You can train it externally through attention
+        // - It processes information
+        // - Information can get isolated to one region
+        // - Somehow, alternating attention back and forth between isolated regions helps merge them
+        // - Somehow, this merging leads to healing
+
+        // TODO changes to make:
+        // - Network to funnel toward the center so that it's hard to get across opposite sides.
+        // 
+        // - Red is still bad, blue still good. That's fine
+        // - Don't put eyes on the thing, because the point is that attention moves around. People will see it as a head and think that the eyes are always nearest one part of the network. But the whole point is that that IS NOT HAPPENING
+        //      - Maybe even show what this would look like because 
+        //      - WAIT!!!!! OMG. THAT'S IT. As I envisioned eyes on it [crazy stuff happening hard to write]
+        //      - Experiences as this is happening:
+        //          - Opened liberty email to look at practicum information, realized I sent it through my personal mail, and then it hit me: this was the first moment I was seriously identifying with counseling in the healthy/happy me. Suddenly I could feel the difference in those networks 
+
+
+        // When showing it:
+        // - Show normal connection between 2 sides
+        // - The middle is essential. It's where meaning is made. It's the buffer from early trauma. If first experiences were stored in the center immediately, we'd be screwed. One bad moment on your first day of life would become your whole reality.
+        //      - So rather, by the time things seep into the middle, they've been distilled. One hugely traumatic event *will* end up here, but it'll be tempered somewhat, and the other side may have the real story. So they'll do battle here, and reality will win. The truth will set you free.
+
+
+
         const MAX_SIGHT = 100;
         const MAIN_BALL_SIZE = 10;
         const MOUSE_BALL_SIZE = 1;
@@ -20,10 +47,12 @@
         const GOOD_BALL_COLOR = "#0000ff";
         const BAD_BALL_COLOR = "#ff0000";
         const ACCELERATION = 0.2;
-        const PERCENT_ENERGY_TO_STORE = 0.10;
+        const PERCENT_ENERGY_TO_STORE = 0.50;
+        const ENERGY_INITIAL = 0.5;
         const ENERGY_DECAY = 0.0;
         const MIN_NETWORK_VISIBILITY = 0.30;
-        const PLEASURE_SEEING_ANYTHING = 1;
+        const PLEASURE_SEEING_ANYTHING = 0;
+        const PLEASURE_SEEING_MOUSE = 0;
         const PLEASURE_TOUCHING_GOOD_BALL = 3;
         const PAIN_TOUCHING_BAD_BALL = 50;
 
@@ -201,7 +230,7 @@
 
         class Energy {
             constructor() {
-                this.strength = 0.01;
+                this.strength = ENERGY_INITIAL;
             }
         }
 
@@ -225,23 +254,40 @@
             }
 
             generateNetwork() {
-                const layers = 4;
-                const nodesPerLayer = 30;
-                for (let layer = 0; layer < layers; layer++) {
-                    const radius = 1 - Math.sqrt(layer / layers);
-                    for (let n = 0; n < nodesPerLayer; n++) {
-                        const angle = n / nodesPerLayer * Math.PI * 2; // Uniform distribution of angle
-                        const nodeX = Math.cos(angle) * radius;
-                        const nodeY = Math.sin(angle) * radius;
-                        const node = new Node(nodeX, nodeY, false);
-                        this.nodes.push(node);
-                        if (layer == 0) {
-                            node.isOutline = true;
-                            this.outlineNodes[n] = node;
-                        }
-                        else
-                            this.innerNodes.push(node);
-                    }
+                // nodes on the outline
+                const nodeCount = NETWORK_SIZE;
+                for (let n = 0; n < nodeCount; n++) {
+                    const angle = (n / nodeCount) * Math.PI * 2;
+                    const magnitude = 1;
+                    const nodeX = Math.cos(angle) * magnitude;
+                    const nodeY = Math.sin(angle) * magnitude;
+                    const node = new Node(nodeX, nodeY, true);
+                    this.nodes.push(node);
+                    this.outlineNodes[n] = node;
+                }
+
+                // nodes on the inside
+                /*for (let n = 0; n < nodeCount; n++) {
+                    const angle = n / 10 * Math.PI * 2;
+                    const magnitudeProportion = (n / nodeCount);
+                    const magnitude = (1 - magnitudeProportion * magnitudeProportion) * 1;
+                    const nodeX = Math.cos(angle) * magnitude;
+                    const nodeY = Math.sin(angle) * magnitude;
+                    const node = new Node(nodeX, nodeY, false);
+                    this.nodes.push(node);
+                    this.innerNodes.push(node);
+                }*/
+                for (let n = 0; n < nodeCount; n++) {
+                    const angle = Math.random() * Math.PI * 2; // Uniform distribution of angle
+                    //const angle = n / 10 * Math.PI * 2;
+                    const radius = Math.sqrt(Math.random()) * 0.8;
+
+                    const nodeX = Math.cos(angle) * radius;
+                    const nodeY = Math.sin(angle) * radius;
+
+                    const node = new Node(nodeX, nodeY, false);
+                    this.nodes.push(node);
+                    this.innerNodes.push(node);
                 }
 
                 let edgeId = 0;
@@ -496,7 +542,7 @@
         }
         createBalls(GOOD_BALL_COLOR, PLEASURE_TOUCHING_GOOD_BALL, 0, GOOD_BALL_COUNT);
         createBalls(BAD_BALL_COLOR, 0, PAIN_TOUCHING_BAD_BALL, BAD_BALL_COUNT);
-        const mouseBall = new Ball(0, 0, MOUSE_BALL_SIZE, PLEASURE_SEEING_ANYTHING, 0, "#ffffff", true);
+        const mouseBall = new Ball(0, 0, MOUSE_BALL_SIZE, PLEASURE_SEEING_MOUSE, 0, "#ffffff", true);
         
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -517,9 +563,10 @@
 
             mainBall.findTouches();
 
-            for (const ball of [...worldBalls, mouseBall]) {
+            for (const ball of worldBalls) {
                 mainBall.processInput(ball, PLEASURE_SEEING_ANYTHING, 0);
             }
+                mainBall.processInput(mouseBall, PLEASURE_SEEING_MOUSE, 0);
 
             for (const ball of [...worldBalls, mouseBall, mainBall]) {
                 ball.update();
