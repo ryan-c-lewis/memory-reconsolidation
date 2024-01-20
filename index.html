@@ -51,10 +51,14 @@
         const ENERGY_INITIAL = 0.5;
         const ENERGY_DECAY = 0.0;
         const MIN_NETWORK_VISIBILITY = 0.30;
-        const PLEASURE_SEEING_ANYTHING = 0;
-        const PLEASURE_SEEING_MOUSE = 0;
+        const PLEASURE_SEEING_ANYTHING = 0.1;
+        const PLEASURE_SEEING_MOUSE = 1;
         const PLEASURE_TOUCHING_GOOD_BALL = 3;
         const PAIN_TOUCHING_BAD_BALL = 50;
+
+        const SETUP_RANDOM = "RANDOM";
+        const SETUP_DEMONSTRATE_DYSFUNCTION = "DYSFUNCTION";
+        let setup = SETUP_DEMONSTRATE_DYSFUNCTION;
 
         const PLEASURE = "+";
         const PAIN = "-";
@@ -339,7 +343,7 @@
                     if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) continue;
                     
                     if (distanceSquared < (this.radius + ball.radius) * (this.radius + ball.radius)) {
-                        if (ball.pleasureToTrigger > 0) {
+                        /*if (ball.pleasureToTrigger > 0) {
                             for (const otherBall of worldBalls) {
                                 if (ball === otherBall)
                                     continue;
@@ -352,11 +356,17 @@
                                     continue;
                                 this.processInput(otherBall, 0, otherBall.painToTrigger);
                             }
-                        }
+                        }*/
+                        this.processInput(ball, ball.pleasureToTrigger, ball.painToTrigger);
                         this.removeElementFromArray(worldBalls, ball);
-                        createBalls(ball.color, ball.pleasureToTrigger, ball.painToTrigger, 1);
+                        this.afterBallTouched(ball);
                     }
                 }
+            }
+
+            afterBallTouched(ball) {
+                if (setup === SETUP_RANDOM)
+                    createBalls(ball.color, ball.pleasureToTrigger, ball.painToTrigger, 1);
             }
 
             processInput(other, pleasureSignal, painSignal) {
@@ -531,6 +541,8 @@
 
         const mainBall = new Ball(0, 0, MAIN_BALL_SIZE, 0, 0, "#ffffff", true);
         const worldBalls = [];
+
+        
         function createBalls(color, pleasure, pain, num) {
             for (let n = 0; n < num; n++) {
                 const radius = 1;
@@ -540,8 +552,22 @@
                 worldBalls.push(ball);
             }
         }
-        createBalls(GOOD_BALL_COLOR, PLEASURE_TOUCHING_GOOD_BALL, 0, GOOD_BALL_COUNT);
-        createBalls(BAD_BALL_COLOR, 0, PAIN_TOUCHING_BAD_BALL, BAD_BALL_COUNT);
+
+        if (setup === SETUP_RANDOM) {
+            createBalls(GOOD_BALL_COLOR, PLEASURE_TOUCHING_GOOD_BALL, 0, GOOD_BALL_COUNT);
+            createBalls(BAD_BALL_COLOR, 0, PAIN_TOUCHING_BAD_BALL, BAD_BALL_COUNT);
+        }
+        else if (setup === SETUP_DEMONSTRATE_DYSFUNCTION) {
+            worldBalls.push(new Ball(-100, 0, 30, 0, PAIN_TOUCHING_BAD_BALL, BAD_BALL_COLOR, true));
+            for (let n = 0; n < 20; n++)
+                worldBalls.push(new Ball(100 + Math.random() * 50 - 25, Math.random() * 50 - 25, 1, 0, PAIN_TOUCHING_BAD_BALL, BAD_BALL_COLOR, true));
+            for (let n = 0; n < 20; n++)
+                worldBalls.push(new Ball(Math.random() * 50 - 25, 100 + Math.random() * 50 - 25, 1, PLEASURE_TOUCHING_GOOD_BALL, 0, GOOD_BALL_COLOR, true));
+            for (let n = 0; n < 20; n++)
+                worldBalls.push(new Ball(Math.random() * 50 - 25, -100 + Math.random() * 50 - 25, 1, PLEASURE_TOUCHING_GOOD_BALL, 0, GOOD_BALL_COLOR, true));
+        }
+
+
         const mouseBall = new Ball(0, 0, MOUSE_BALL_SIZE, PLEASURE_SEEING_MOUSE, 0, "#ffffff", true);
         
         function animate() {
@@ -566,7 +592,7 @@
             for (const ball of worldBalls) {
                 mainBall.processInput(ball, PLEASURE_SEEING_ANYTHING, 0);
             }
-                mainBall.processInput(mouseBall, PLEASURE_SEEING_MOUSE, 0);
+            mainBall.processInput(mouseBall, PLEASURE_SEEING_MOUSE, 0);
 
             for (const ball of [...worldBalls, mouseBall, mainBall]) {
                 ball.update();
