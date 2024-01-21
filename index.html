@@ -38,7 +38,7 @@
 
 
 
-        const MAX_SIGHT = 100;
+        const MAX_SIGHT = 10;
         const MAIN_BALL_SIZE = 10;
         const MOUSE_BALL_SIZE = 1;
         const NETWORK_SIZE = 100;
@@ -48,13 +48,16 @@
         const BAD_BALL_COLOR = "#ff0000";
         const ACCELERATION = 0.2;
         const PERCENT_ENERGY_TO_STORE = 0.50;
-        const ENERGY_INITIAL = 0.5;
+        const ENERGY_INITIAL_PLEASURE = 0.1;
+        const ENERGY_INITIAL_PAIN = 0;
         const ENERGY_DECAY = 0.0;
         const MIN_NETWORK_VISIBILITY = 0.30;
         const PLEASURE_SEEING_ANYTHING = 0.1;
         const PLEASURE_SEEING_MOUSE = 1;
         const PLEASURE_TOUCHING_GOOD_BALL = 3;
         const PAIN_TOUCHING_BAD_BALL = 50;
+        const SIGNIFIANCE_OF_TOUCH = 1;
+        const SIGNIFIANCE_OF_SIGHT = 0.1;
 
         const SETUP_RANDOM = "RANDOM";
         const SETUP_DEMONSTRATE_DYSFUNCTION = "DYSFUNCTION";
@@ -172,8 +175,14 @@
                 this.energies = {};
                 this.iterationChanged = 0;
                 for (const energyType of energyTypes) {
-                    this.energies[energyType] = new Energy();
+                    const initial = energyType.endsWith(PLEASURE) ? ENERGY_INITIAL_PLEASURE : ENERGY_INITIAL_PAIN;
+                    this.energies[energyType] = new Energy(initial);
                 }
+            }
+
+            readEnergy(energyType, iteration) {
+                this.iterationChanged = iteration;
+                return this.energies[energyType].strength;
             }
 
             storeEnergy(energyType, strengthToStore, iteration) {
@@ -233,8 +242,26 @@
         }
 
         class Energy {
+            constructor(initial) {
+                this.strength = initial;
+            }
+        }
+
+        class Output {
+            constructor(node, strength, orientation) {
+                this.node = node;
+                this.strength = strength;
+                this.orientation = orientation;
+            }
+        }
+
+        class OutputCollection {
             constructor() {
-                this.strength = ENERGY_INITIAL;
+                this.outputs = [];
+            }
+
+            add(output) {
+                this.outputs.push(output);
             }
         }
 
@@ -343,21 +370,9 @@
                     if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) continue;
                     
                     if (distanceSquared < (this.radius + ball.radius) * (this.radius + ball.radius)) {
-                        /*if (ball.pleasureToTrigger > 0) {
-                            for (const otherBall of worldBalls) {
-                                if (ball === otherBall)
-                                    continue;
-                                this.processInput(otherBall, otherBall.pleasureToTrigger, 0);
-                            }
-                        }
-                        if (ball.painToTrigger > 0) {
-                            for (const otherBall of worldBalls) {
-                                if (ball === otherBall)
-                                    continue;
-                                this.processInput(otherBall, 0, otherBall.painToTrigger);
-                            }
-                        }*/
-                        this.processInput(ball, ball.pleasureToTrigger, ball.painToTrigger);
+                        const outputCollection = this.processInteraction(ball, ball.pleasureSignal, ball.painSignal);
+                        for (const output of outputCollection.outputs)
+                            this.triggerOutput(output);
                         this.removeElementFromArray(worldBalls, ball);
                         this.afterBallTouched(ball);
                     }
@@ -369,16 +384,34 @@
                     createBalls(ball.color, ball.pleasureToTrigger, ball.painToTrigger, 1);
             }
 
-            processInput(other, pleasureSignal, painSignal) {
+            processSight(other) {
+                const outputCollection = this.processInteraction(other, 1, 1);
+                let pleasureImpulse = 0;
+                let painImpulse = 0;
+                for (const output of outputCollection.outputs) {
+                    if (output.orientation == 1)
+                        pleasureImpulse += output.strength;
+                    else
+                        painImpulse += output.strength;
+                }
+                const closestEdgeNode = this.getClosestEdgeNode(other);
+                if (closestEdgeNode !== undefined) {
+                    this.triggerOutput(new Output(closestEdgeNode, pleasureImpulse, 1));
+                    this.triggerOutput(new Output(closestEdgeNode, painImpulse, -1));
+                }
+            }
+
+            /*
+            estimatePleasure(other) {
                 const dx = other.x - this.x;
                 const dy = other.y - this.y;
                 const distanceSquared = dx * dx + dy * dy;
                 const distance = Math.sqrt(distanceSquared);
 
-                if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) return;
+                if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) return 0;
                 
                 const angle = Math.atan2(dy, dx);
-                const magnitude = (1 - distance / MAX_SIGHT) * other.radius;
+                const magnitude = (1 - distance / MAX_SIGHT) * other.radius * SIGNIFIANCE_OF_SIGHT;
                 const outlineNodeCount = Object.keys(this.outlineNodes).length;
                 const outlineIndex = Math.floor((angle + Math.PI * 2) / (Math.PI * 2) * outlineNodeCount);
                 const outlineNode = this.outlineNodes[outlineIndex % outlineNodeCount];
@@ -387,23 +420,105 @@
                 const g = this.hexToG(other.color) / 255;
                 const b = this.hexToB(other.color) / 255;
 
-                if (pleasureSignal > 0) {
-                    this.resolve(NETWORK_SEE_RED + PLEASURE, outlineNode, magnitude * r * pleasureSignal);
-                    this.resolve(NETWORK_SEE_GREEN + PLEASURE, outlineNode, magnitude * g * pleasureSignal);
-                    this.resolve(NETWORK_SEE_BLUE + PLEASURE, outlineNode, magnitude * b * pleasureSignal);
-                }
-                if (painSignal > 0) {
-                    this.resolve(NETWORK_SEE_RED + PAIN, outlineNode, magnitude * r * painSignal);
-                    this.resolve(NETWORK_SEE_GREEN + PAIN, outlineNode, magnitude * g * painSignal);
-                    this.resolve(NETWORK_SEE_BLUE + PAIN, outlineNode, magnitude * b * painSignal);
-                }
+                const redEstimate = this.resolveSight(NETWORK_SEE_RED + PLEASURE, outlineNode, magnitude * r);
+                const greenEstimate = this.resolveSight(NETWORK_SEE_GREEN + PLEASURE, outlineNode, magnitude * g);
+                const blueEstimate = this.resolveSight(NETWORK_SEE_BLUE + PLEASURE, outlineNode, magnitude * b);
+                return (redEstimate + greenEstimate + blueEstimate) / 3;
             }
 
-            resolve(energyType, startingNode, strength) {
+            // TODO this is almost identical to above
+            estimatePain(other) {
+                const dx = other.x - this.x;
+                const dy = other.y - this.y;
+                const distanceSquared = dx * dx + dy * dy;
+                const distance = Math.sqrt(distanceSquared);
+
+                if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) return 0;
+                
+                const angle = Math.atan2(dy, dx);
+                const magnitude = (1 - distance / MAX_SIGHT) * other.radius * SIGNIFIANCE_OF_SIGHT;
+                const outlineNodeCount = Object.keys(this.outlineNodes).length;
+                const outlineIndex = Math.floor((angle + Math.PI * 2) / (Math.PI * 2) * outlineNodeCount);
+                const outlineNode = this.outlineNodes[outlineIndex % outlineNodeCount];
+
+                const r = this.hexToR(other.color) / 255;
+                const g = this.hexToG(other.color) / 255;
+                const b = this.hexToB(other.color) / 255;
+
+                const redEstimate = this.resolveSight(NETWORK_SEE_RED + PAIN, outlineNode, magnitude * r);
+                const greenEstimate = this.resolveSight(NETWORK_SEE_GREEN + PAIN, outlineNode, magnitude * g);
+                const blueEstimate = this.resolveSight(NETWORK_SEE_BLUE + PAIN, outlineNode, magnitude * b);
+                return (redEstimate + greenEstimate + blueEstimate) / 3;
+            }
+            */
+
+            // TODO this is copy pasted
+            getClosestEdgeNode(other) {
+                const dx = other.x - this.x;
+                const dy = other.y - this.y;
+                const distanceSquared = dx * dx + dy * dy;
+                const distance = Math.sqrt(distanceSquared);
+
+                if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) return undefined;
+                
+                const angle = Math.atan2(dy, dx);
+                const magnitude = (1 - (distance - this.radius - other.radius) / MAX_SIGHT) * other.radius;
+                const outlineNodeCount = Object.keys(this.outlineNodes).length;
+                const outlineIndex = Math.floor((angle + Math.PI * 2) / (Math.PI * 2) * outlineNodeCount);
+                const outlineNode = this.outlineNodes[outlineIndex % outlineNodeCount];
+                return outlineNode;
+            }
+
+            processInteraction(other, pleasureSignal, painSignal) {
+                const dx = other.x - this.x;
+                const dy = other.y - this.y;
+                const distanceSquared = dx * dx + dy * dy;
+                const distance = Math.sqrt(distanceSquared);
+
+                if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) return new OutputCollection();
+                
+                const angle = Math.atan2(dy, dx);
+                const magnitude = (1 - (distance - this.radius - other.radius) / MAX_SIGHT) * other.radius;
+                const outlineNodeCount = Object.keys(this.outlineNodes).length;
+                const outlineIndex = Math.floor((angle + Math.PI * 2) / (Math.PI * 2) * outlineNodeCount);
+                const outlineNode = this.outlineNodes[outlineIndex % outlineNodeCount];
+
+                const r = this.hexToR(other.color) / 255;
+                const g = this.hexToG(other.color) / 255;
+                const b = this.hexToB(other.color) / 255;
+
+                const outputCollection = new OutputCollection();
+                this.resolveTouch(NETWORK_SEE_RED + PLEASURE, outlineNode, magnitude * r * pleasureSignal, outputCollection);
+                this.resolveTouch(NETWORK_SEE_GREEN + PLEASURE, outlineNode, magnitude * g * pleasureSignal, outputCollection);
+                this.resolveTouch(NETWORK_SEE_BLUE + PLEASURE, outlineNode, magnitude * b * pleasureSignal, outputCollection);
+                this.resolveTouch(NETWORK_SEE_RED + PAIN, outlineNode, magnitude * r * painSignal, outputCollection);
+                this.resolveTouch(NETWORK_SEE_GREEN + PAIN, outlineNode, magnitude * g * painSignal, outputCollection);
+                this.resolveTouch(NETWORK_SEE_BLUE + PAIN, outlineNode, magnitude * b * painSignal, outputCollection);
+                return outputCollection;
+            }
+
+            resolveSight(energyType, startingNode, strength) {
+                this.iteration++;
+                let edgesToExplore = this.getInitialEdgesToExplore(startingNode, strength);
+                let predictions = new PredictionCollection();
+                let distance = 1;
+                while (edgesToExplore.length > 0) {
+                    let newEdgesToExplore = this.exploreEdgesForSight(energyType, edgesToExplore, predictions, distance);
+                    edgesToExplore = newEdgesToExplore;
+                    distance++;
+                }
+
+                let total = 0;
+                for (let n = 0; n < predictions.predictions.length; n++)
+                    total += predictions.predictions[n];
+                return total = predictions.predictions.length;
+            }
+
+            resolveTouch(energyType, startingNode, strength, outputCollection) {
                 this.iteration++;
                 let edgesToExplore = this.getInitialEdgesToExplore(startingNode, strength);
                 while (edgesToExplore.length > 0) {
-                    let newEdgesToExplore = this.exploreEdges(energyType, edgesToExplore);
+                    let newEdgesToExplore = this.exploreEdgesForTouch(energyType, edgesToExplore, outputCollection);
                     edgesToExplore = newEdgesToExplore;
                 }
             }
@@ -416,7 +531,8 @@
                 return edgesToExplore;
             }
 
-            exploreEdges(energyType, edgesToExplore, edgesUnexplored) {
+            // TODO this is copy-pasted
+            exploreEdgesForSight(energyType, edgesToExplore, predictions, distance) {
                 let newEdgesToExplore = [];
                 for (const edgeToExplore of edgesToExplore) {
                     const nextNode = this.getOtherNode(edgeToExplore[0], edgeToExplore[1]);
@@ -428,12 +544,32 @@
                             continue;
                         nextEdge.iterationChanged = this.iteration;
                         
-                        const remainingEnergy = this.processEnergy(energyType, nextEdge, totalNearbyEnergy, edgeToExplore[2]);
+                        const energy = this.readEnergy(energyType, nextEdge);
+                        const importance = 1 / distance;
+                        predictions.add(energy * importance);
+                    }
+                }
+                return newEdgesToExplore;
+            }
+
+            exploreEdgesForTouch(energyType, edgesToExplore, outputCollection) {
+                let newEdgesToExplore = [];
+                for (const edgeToExplore of edgesToExplore) {
+                    const nextNode = this.getOtherNode(edgeToExplore[0], edgeToExplore[1]);
+                    let totalNearbyEnergy = nextNode.getNearbyEnergy(energyType);
+                    for (const nextEdge of nextNode.edges) {
+                        if (nextEdge === edgeToExplore)
+                            continue;
+                        if (nextEdge.iterationChanged === this.iteration)
+                            continue;
+                        nextEdge.iterationChanged = this.iteration;
+                        
+                        const remainingEnergy = this.storeEnergy(energyType, nextEdge, totalNearbyEnergy, edgeToExplore[2]);
                         newEdgesToExplore.push([nextNode, nextEdge, remainingEnergy]);
                     }
                     if (nextNode.isOutline) {
-                        const reaction = energyType[1] == '+' ? 1 : -1;
-                        this.triggerOutput(nextNode, edgeToExplore[2], reaction);
+                        const orientation = energyType[1] == '+' ? 1 : -1;
+                        outputCollection.add(new Output(nextNode, edgeToExplore[2], orientation));
                     }
                 }
                 return newEdgesToExplore;
@@ -445,11 +581,11 @@
                 return edge.node1;
             }
 
-            edgeIsUnexplored(edge, edgesUnexplored) {
-                return edgesUnexplored.includes(edge);
+            readEnergy(energyType, nextEdge) {
+                return nextEdge.readEnergy(energyType, this.iteration);
             }
 
-            processEnergy(energyType, nextEdge, totalNearbyEnergy, strength) {
+            storeEnergy(energyType, nextEdge, totalNearbyEnergy, strength) {
                 const currentStrength = nextEdge.energies[energyType].strength;
                 const energyToSend = currentStrength / totalNearbyEnergy * strength;
                 const proportionToStore = PERCENT_ENERGY_TO_STORE;
@@ -458,11 +594,11 @@
                 return energyToSend - energyToStore;
             }
 
-            triggerOutput(node, strength, reaction) {
-                const impulseStrength = strength * ACCELERATION;
-                const angle = Math.atan2(node.y, node.x);
-                this.velocityX += Math.cos(angle) * impulseStrength * reaction;
-                this.velocityY += Math.sin(angle) * impulseStrength * reaction;
+            triggerOutput(output) {
+                const impulseStrength = output.strength * ACCELERATION;
+                const angle = Math.atan2(output.node.y, output.node.x);
+                this.velocityX += Math.cos(angle) * impulseStrength * output.orientation;
+                this.velocityY += Math.sin(angle) * impulseStrength * output.orientation;
             }
 
             hexToR(hex) {
@@ -590,9 +726,9 @@
             mainBall.findTouches();
 
             for (const ball of worldBalls) {
-                mainBall.processInput(ball, PLEASURE_SEEING_ANYTHING, 0);
+                mainBall.processSight(ball);
             }
-            mainBall.processInput(mouseBall, PLEASURE_SEEING_MOUSE, 0);
+            mainBall.processSight(mouseBall);
 
             for (const ball of [...worldBalls, mouseBall, mainBall]) {
                 ball.update();
