@@ -10,71 +10,28 @@
 </head>
 <body style="background-color: black; margin: 0; overflow: hidden;">
     <canvas id="canvas"></canvas>
-    <script> 
-
-        // Fundamental features I want to be able to represent:
-        // - It moves around on its own
-        // - You can train it externally through attention
-        // - It processes information
-        // - Information can get isolated to one region
-        // - Somehow, alternating attention back and forth between isolated regions helps merge them
-        // - Somehow, this merging leads to healing
-
-        // TODO changes to make:
-        // - Network to funnel toward the center so that it's hard to get across opposite sides.
-        // 
-        // - Red is still bad, blue still good. That's fine
-        // - Don't put eyes on the thing, because the point is that attention moves around. People will see it as a head and think that the eyes are always nearest one part of the network. But the whole point is that that IS NOT HAPPENING
-        //      - Maybe even show what this would look like because 
-        //      - WAIT!!!!! OMG. THAT'S IT. As I envisioned eyes on it [crazy stuff happening hard to write]
-        //      - Experiences as this is happening:
-        //          - Opened liberty email to look at practicum information, realized I sent it through my personal mail, and then it hit me: this was the first moment I was seriously identifying with counseling in the healthy/happy me. Suddenly I could feel the difference in those networks 
-
-
-        // When showing it:
-        // - Show normal connection between 2 sides
-        // - The middle is essential. It's where meaning is made. It's the buffer from early trauma. If first experiences were stored in the center immediately, we'd be screwed. One bad moment on your first day of life would become your whole reality.
-        //      - So rather, by the time things seep into the middle, they've been distilled. One hugely traumatic event *will* end up here, but it'll be tempered somewhat, and the other side may have the real story. So they'll do battle here, and reality will win. The truth will set you free.
-
-
-
-        const MAX_SIGHT = 10;
+    <script>
+        const MAX_SIGHT = 200;
         const MAIN_BALL_SIZE = 10;
         const MOUSE_BALL_SIZE = 1;
         const NETWORK_SIZE = 100;
-        const GOOD_BALL_COUNT = 50;
-        const BAD_BALL_COUNT = 50;
-        const GOOD_BALL_COLOR = "#0000ff";
-        const BAD_BALL_COLOR = "#ff0000";
+        const BLUE_BALL_COUNT = 40;
+        const RED_BALL_COUNT = 40;
         const ACCELERATION = 0.2;
-        const PERCENT_ENERGY_TO_STORE = 0.50;
-        const ENERGY_INITIAL_PLEASURE = 0.1;
-        const ENERGY_INITIAL_PAIN = 0;
+        const STRENGTH_PER_INTERACTION = 2.00;
+        const MOUSE_STRENGTH = 5.00;
+        const MEMORY_PER_TOUCH = 30.00;
+        const ENERGY_TRANSFER_MULTIPLIER = 0.90;
         const ENERGY_DECAY = 0.0;
         const MIN_NETWORK_VISIBILITY = 0.30;
-        const PLEASURE_SEEING_ANYTHING = 0.1;
-        const PLEASURE_SEEING_MOUSE = 1;
-        const PLEASURE_TOUCHING_GOOD_BALL = 3;
-        const PAIN_TOUCHING_BAD_BALL = 50;
-        const SIGNIFIANCE_OF_TOUCH = 1;
-        const SIGNIFIANCE_OF_SIGHT = 0.1;
+        const INTERACTION_TYPE_SEE = "SEE";
+        const INTERACTION_TYPE_TOUCH = "TOUCH";
+        const INTERACTION_TYPE_MOUSE = "MOUSE";
 
-        const SETUP_RANDOM = "RANDOM";
-        const SETUP_DEMONSTRATE_DYSFUNCTION = "DYSFUNCTION";
-        let setup = SETUP_DEMONSTRATE_DYSFUNCTION;
-
-        const PLEASURE = "+";
-        const PAIN = "-";
         const NETWORK_SEE_RED = "R";
         const NETWORK_SEE_GREEN = "G";
         const NETWORK_SEE_BLUE = "B";
-        const energyTypes = [
-            NETWORK_SEE_RED + PLEASURE,
-            NETWORK_SEE_GREEN + PLEASURE,
-            NETWORK_SEE_BLUE + PLEASURE,
-            NETWORK_SEE_RED + PAIN,
-            NETWORK_SEE_GREEN + PAIN,
-            NETWORK_SEE_BLUE + PAIN];
+        const energyTypes = [NETWORK_SEE_RED, NETWORK_SEE_GREEN, NETWORK_SEE_BLUE];
 
         const MODE_EXTERNAL = "E";
         const MODE_INTERNAL = "I";
@@ -100,15 +57,10 @@
             mouseY = event.touches[0].clientY - canvas.getBoundingClientRect().top;
         });
         canvas.addEventListener("click", (event) => {
-            // TODO
-        });
-        document.addEventListener("keydown", (event) => {
-            if (event.key === 'Z' || event.key === 'z') {
-                if (currentMode === MODE_EXTERNAL)
-                    transitionToInternalMode();
-                else if (currentMode === MODE_INTERNAL)
-                    transitionToExternalMode();
-            }
+            if (currentMode === MODE_EXTERNAL)
+                transitionToInternalMode();
+            else if (currentMode === MODE_INTERNAL)
+                transitionToExternalMode();
         });
 
         let externalModeX = 0;
@@ -119,7 +71,7 @@
             externalModeY = mainBall.y;
             mainBall.velocityX = 0;
             mainBall.velocityY = 0;
-            mainBall.radius = Math.min(canvas.width, canvas.height) / 3;
+            mainBall.radius = Math.min(canvas.width, canvas.height) / 2.5;
         }
 
         function transitionToExternalMode() {
@@ -175,21 +127,17 @@
                 this.energies = {};
                 this.iterationChanged = 0;
                 for (const energyType of energyTypes) {
-                    const initial = energyType.endsWith(PLEASURE) ? ENERGY_INITIAL_PLEASURE : ENERGY_INITIAL_PAIN;
-                    this.energies[energyType] = new Energy(initial);
+                    this.energies[energyType] = new Energy();
                 }
             }
 
-            readEnergy(energyType, iteration) {
+            storeEnergy(energyType, strengthToStore, iteration, interactionType) {
                 this.iterationChanged = iteration;
-                return this.energies[energyType].strength;
-            }
-
-            storeEnergy(energyType, strengthToStore, iteration) {
-                this.iterationChanged = iteration;
-                this.energies[energyType].strength += strengthToStore;
-                if (this.energies[energyType].strength > 1)
-                    this.energies[energyType].strength = 1;
+                if (interactionType === INTERACTION_TYPE_TOUCH) {
+                    this.energies[energyType].strength += strengthToStore * MEMORY_PER_TOUCH;
+                    if (this.energies[energyType].strength > 1)
+                        this.energies[energyType].strength = 1;
+                }
             }
 
             decayEnergy() {
@@ -199,37 +147,34 @@
                 }
             }
 
-            draw(parentBall, energyFilter) {
-                const x1 = canvas.width / 2 + parentBall.x + this.node1.x * parentBall.radius;
-                const y1 = canvas.height / 2 + parentBall.y + this.node1.y * parentBall.radius;
-                const x2 = canvas.width / 2 + parentBall.x + this.node2.x * parentBall.radius;
-                const y2 = canvas.height / 2 + parentBall.y + this.node2.y * parentBall.radius;
+            draw(parentBall) {
+                if (currentMode === MODE_INTERNAL) {
+                    const x1 = canvas.width / 2 + parentBall.x + this.node1.x * parentBall.radius;
+                    const y1 = canvas.height / 2 + parentBall.y + this.node1.y * parentBall.radius;
+                    const x2 = canvas.width / 2 + parentBall.x + this.node2.x * parentBall.radius;
+                    const y2 = canvas.height / 2 + parentBall.y + this.node2.y * parentBall.radius;
 
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    let r = Math.floor(this.energies[NETWORK_SEE_RED].strength * 255);
+                    let g = Math.floor(this.energies[NETWORK_SEE_GREEN].strength * 255);
+                    let b = Math.floor(this.energies[NETWORK_SEE_BLUE].strength * 255);
 
-                let r = 0;
-                let g = 0;
-                let b = 0;
-                if (energyFilter === PAIN) {
-                    r = Math.floor(this.energies[NETWORK_SEE_RED + PAIN].strength * 255);
-                    g = Math.floor(this.energies[NETWORK_SEE_GREEN + PAIN].strength * 255);
-                    b = Math.floor(this.energies[NETWORK_SEE_BLUE + PAIN].strength * 255);
-                } else {
-                    r = Math.floor(this.energies[NETWORK_SEE_RED + PLEASURE].strength * 255);
-                    g = Math.floor(this.energies[NETWORK_SEE_GREEN + PLEASURE].strength * 255);
-                    b = Math.floor(this.energies[NETWORK_SEE_BLUE + PLEASURE].strength * 255);
+                    const min = 255 * MIN_NETWORK_VISIBILITY;
+                    r = (r / 255) * (255 - min) + min;
+                    g = min;//(g / 255) * (255 - min) + min;
+                    b = (b / 255) * (255 - min) + min;
+
+                    ctx.strokeStyle = this.rgbToHex(r, g, b);
+                    ctx.lineWidth = 1;
+                    //if (currentMode === MODE_INTERNAL && this.iterationChanged === parentBall.iteration) {
+                    //    ctx.strokeStyle = "#ffffff";
+                    //    ctx.lineWidth = 5;
+                    //}
+                    ctx.stroke();
+                    ctx.closePath();
                 }
-                const min = 255 * MIN_NETWORK_VISIBILITY;
-                r = (r / 255) * (255 - min) + min;
-                g = (g / 255) * (255 - min) + min;
-                b = (b / 255) * (255 - min) + min;
-
-                ctx.strokeStyle = this.rgbToHex(r, g, b);
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                ctx.closePath();
             }
 
             rgbToHex(r, g, b) {
@@ -241,32 +186,46 @@
             }
         }
 
+        class EdgeLookup {
+            constructor(allEdges) {
+                this.lookupTable = {};
+                this.edges = [];
+                for (const edge of allEdges)
+                    this.addEdge(edge);
+            }
+
+            addEdge(edge) {
+                const id = edge.id;
+                if (!this.lookupTable[id]) {
+                    this.lookupTable[id] = edge;
+                    this.edges.push(edge);
+                }
+            }
+
+            containsEdge(edge) {
+                return !!this.lookupTable[edge.id];
+            }
+
+            removeEdge(edge) {
+                const id = edge.id;
+                if (this.lookupTable[id]) {
+                    delete this.lookupTable[id];
+                    const index = this.edges.indexOf(edge);
+                    if (index !== -1) {
+                        this.edges.splice(index, 1);
+                    }
+                }
+            }
+        }
+
         class Energy {
-            constructor(initial) {
-                this.strength = initial;
-            }
-        }
-
-        class Output {
-            constructor(node, strength, orientation) {
-                this.node = node;
-                this.strength = strength;
-                this.orientation = orientation;
-            }
-        }
-
-        class OutputCollection {
             constructor() {
-                this.outputs = [];
-            }
-
-            add(output) {
-                this.outputs.push(output);
+                this.strength = 0.01;
             }
         }
 
         class Ball {
-            constructor(x, y, radius, pleasure, pain, color, doDraw) {
+            constructor(x, y, radius, color, nodeCount, doDraw) {
                 this.x = x;
                 this.y = y;
                 this.velocityX = 0;
@@ -279,14 +238,11 @@
                 this.color = color;
                 this.iteration = 0;
                 this.doDraw = doDraw;
-                this.pleasureToTrigger = pleasure;
-                this.painToTrigger = pain;
-                this.generateNetwork();
+                this.generateNetwork(nodeCount);
             }
 
-            generateNetwork() {
+            generateNetwork(nodeCount) {
                 // nodes on the outline
-                const nodeCount = NETWORK_SIZE;
                 for (let n = 0; n < nodeCount; n++) {
                     const angle = (n / nodeCount) * Math.PI * 2;
                     const magnitude = 1;
@@ -321,8 +277,29 @@
                     this.innerNodes.push(node);
                 }
 
+
+                /*
                 let edgeId = 0;
-                const N = 6; // Change this value to set the number of closest nodes you want to connect with
+                for (let i = 0; i < this.nodes.length; i++) {
+                    for (let j = i + 1; j < this.nodes.length; j++) {
+                        const node1 = this.nodes[i];
+                        const node2 = this.nodes[j];
+                        if (node1 === node2) continue;
+                        const distance = Math.sqrt((node1.x - node2.x) ** 2 + (node1.y - node2.y) ** 2);
+                        const distanceThreshold = 1 / 2;
+                        if (distance < distanceThreshold) {
+                            const edge = new Edge(edgeId, node1, node2);
+                            edgeId++;
+                            this.edges.push(edge);
+                            node1.edges.push(edge);
+                            node2.edges.push(edge);
+                        }
+                    }
+                }
+                */
+
+                let edgeId = 0;
+                const N = 5; // Change this value to set the number of closest nodes you want to connect with
                 for (let i = 0; i < this.nodes.length; i++) {
                     const node1 = this.nodes[i];
                     let distances = [];
@@ -361,57 +338,28 @@
                 return false; // Value not found
             }
 
-            findTouches() {
-                for (const ball of worldBalls) {
-                    const dx = ball.x - this.x;
-                    const dy = ball.y - this.y;
-                    const distanceSquared = dx * dx + dy * dy;
-
-                    if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) continue;
-                    
-                    if (distanceSquared < (this.radius + ball.radius) * (this.radius + ball.radius)) {
-                        const outputCollection = this.processInteraction(ball, ball.pleasureSignal, ball.painSignal);
-                        for (const output of outputCollection.outputs)
-                            this.triggerOutput(output);
-                        this.removeElementFromArray(worldBalls, ball);
-                        this.afterBallTouched(ball);
-                    }
-                }
-            }
-
-            afterBallTouched(ball) {
-                if (setup === SETUP_RANDOM)
-                    createBalls(ball.color, ball.pleasureToTrigger, ball.painToTrigger, 1);
-            }
-
-            processSight(other) {
-                const outputCollection = this.processInteraction(other, 1, 1);
-                let pleasureImpulse = 0;
-                let painImpulse = 0;
-                for (const output of outputCollection.outputs) {
-                    if (output.orientation == 1)
-                        pleasureImpulse += output.strength;
-                    else
-                        painImpulse += output.strength;
-                }
-                const closestEdgeNode = this.getClosestEdgeNode(other);
-                if (closestEdgeNode !== undefined) {
-                    this.triggerOutput(new Output(closestEdgeNode, pleasureImpulse, 1));
-                    this.triggerOutput(new Output(closestEdgeNode, painImpulse, -1));
-                }
-            }
-
-            /*
-            estimatePleasure(other) {
+            processInput(other) {
                 const dx = other.x - this.x;
                 const dy = other.y - this.y;
                 const distanceSquared = dx * dx + dy * dy;
-                const distance = Math.sqrt(distanceSquared);
 
-                if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) return 0;
+                if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) return;
                 
+                let strengthModifier = STRENGTH_PER_INTERACTION;
+                let interactionType = INTERACTION_TYPE_SEE;
+                if (distanceSquared < (this.radius + other.radius) * (this.radius + other.radius) && other !== mouseBall) {
+                    this.removeElementFromArray(allBalls, other);
+                    createBalls(other.color, 1);
+                    interactionType = INTERACTION_TYPE_TOUCH;
+                }
+                if (other === mouseBall) {
+                    strengthModifier = MOUSE_STRENGTH;
+                    interactionType = INTERACTION_TYPE_MOUSE;
+                }
+
                 const angle = Math.atan2(dy, dx);
-                const magnitude = (1 - distance / MAX_SIGHT) * other.radius * SIGNIFIANCE_OF_SIGHT;
+                const distanceModifier = Math.sqrt(distanceSquared) / MAX_SIGHT;
+                const magnitude = 1 - Math.sqrt(distanceModifier);
                 const outlineNodeCount = Object.keys(this.outlineNodes).length;
                 const outlineIndex = Math.floor((angle + Math.PI * 2) / (Math.PI * 2) * outlineNodeCount);
                 const outlineNode = this.outlineNodes[outlineIndex % outlineNodeCount];
@@ -420,105 +368,17 @@
                 const g = this.hexToG(other.color) / 255;
                 const b = this.hexToB(other.color) / 255;
 
-                const redEstimate = this.resolveSight(NETWORK_SEE_RED + PLEASURE, outlineNode, magnitude * r);
-                const greenEstimate = this.resolveSight(NETWORK_SEE_GREEN + PLEASURE, outlineNode, magnitude * g);
-                const blueEstimate = this.resolveSight(NETWORK_SEE_BLUE + PLEASURE, outlineNode, magnitude * b);
-                return (redEstimate + greenEstimate + blueEstimate) / 3;
+                this.resolve(NETWORK_SEE_RED, outlineNode, magnitude * r * strengthModifier, interactionType);
+                this.resolve(NETWORK_SEE_GREEN, outlineNode, magnitude * g * strengthModifier, interactionType);
+                this.resolve(NETWORK_SEE_BLUE, outlineNode, magnitude * b * strengthModifier, interactionType);
             }
 
-            // TODO this is almost identical to above
-            estimatePain(other) {
-                const dx = other.x - this.x;
-                const dy = other.y - this.y;
-                const distanceSquared = dx * dx + dy * dy;
-                const distance = Math.sqrt(distanceSquared);
-
-                if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) return 0;
-                
-                const angle = Math.atan2(dy, dx);
-                const magnitude = (1 - distance / MAX_SIGHT) * other.radius * SIGNIFIANCE_OF_SIGHT;
-                const outlineNodeCount = Object.keys(this.outlineNodes).length;
-                const outlineIndex = Math.floor((angle + Math.PI * 2) / (Math.PI * 2) * outlineNodeCount);
-                const outlineNode = this.outlineNodes[outlineIndex % outlineNodeCount];
-
-                const r = this.hexToR(other.color) / 255;
-                const g = this.hexToG(other.color) / 255;
-                const b = this.hexToB(other.color) / 255;
-
-                const redEstimate = this.resolveSight(NETWORK_SEE_RED + PAIN, outlineNode, magnitude * r);
-                const greenEstimate = this.resolveSight(NETWORK_SEE_GREEN + PAIN, outlineNode, magnitude * g);
-                const blueEstimate = this.resolveSight(NETWORK_SEE_BLUE + PAIN, outlineNode, magnitude * b);
-                return (redEstimate + greenEstimate + blueEstimate) / 3;
-            }
-            */
-
-            // TODO this is copy pasted
-            getClosestEdgeNode(other) {
-                const dx = other.x - this.x;
-                const dy = other.y - this.y;
-                const distanceSquared = dx * dx + dy * dy;
-                const distance = Math.sqrt(distanceSquared);
-
-                if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) return undefined;
-                
-                const angle = Math.atan2(dy, dx);
-                const magnitude = (1 - (distance - this.radius - other.radius) / MAX_SIGHT) * other.radius;
-                const outlineNodeCount = Object.keys(this.outlineNodes).length;
-                const outlineIndex = Math.floor((angle + Math.PI * 2) / (Math.PI * 2) * outlineNodeCount);
-                const outlineNode = this.outlineNodes[outlineIndex % outlineNodeCount];
-                return outlineNode;
-            }
-
-            processInteraction(other, pleasureSignal, painSignal) {
-                const dx = other.x - this.x;
-                const dy = other.y - this.y;
-                const distanceSquared = dx * dx + dy * dy;
-                const distance = Math.sqrt(distanceSquared);
-
-                if (distanceSquared > (MAX_SIGHT + this.radius) * (MAX_SIGHT + this.radius)) return new OutputCollection();
-                
-                const angle = Math.atan2(dy, dx);
-                const magnitude = (1 - (distance - this.radius - other.radius) / MAX_SIGHT) * other.radius;
-                const outlineNodeCount = Object.keys(this.outlineNodes).length;
-                const outlineIndex = Math.floor((angle + Math.PI * 2) / (Math.PI * 2) * outlineNodeCount);
-                const outlineNode = this.outlineNodes[outlineIndex % outlineNodeCount];
-
-                const r = this.hexToR(other.color) / 255;
-                const g = this.hexToG(other.color) / 255;
-                const b = this.hexToB(other.color) / 255;
-
-                const outputCollection = new OutputCollection();
-                this.resolveTouch(NETWORK_SEE_RED + PLEASURE, outlineNode, magnitude * r * pleasureSignal, outputCollection);
-                this.resolveTouch(NETWORK_SEE_GREEN + PLEASURE, outlineNode, magnitude * g * pleasureSignal, outputCollection);
-                this.resolveTouch(NETWORK_SEE_BLUE + PLEASURE, outlineNode, magnitude * b * pleasureSignal, outputCollection);
-                this.resolveTouch(NETWORK_SEE_RED + PAIN, outlineNode, magnitude * r * painSignal, outputCollection);
-                this.resolveTouch(NETWORK_SEE_GREEN + PAIN, outlineNode, magnitude * g * painSignal, outputCollection);
-                this.resolveTouch(NETWORK_SEE_BLUE + PAIN, outlineNode, magnitude * b * painSignal, outputCollection);
-                return outputCollection;
-            }
-
-            resolveSight(energyType, startingNode, strength) {
+            resolve(energyType, startingNode, strength, interactionType) {
                 this.iteration++;
                 let edgesToExplore = this.getInitialEdgesToExplore(startingNode, strength);
-                let predictions = new PredictionCollection();
-                let distance = 1;
+                let edgesUnexplored = new EdgeLookup(this.edges);
                 while (edgesToExplore.length > 0) {
-                    let newEdgesToExplore = this.exploreEdgesForSight(energyType, edgesToExplore, predictions, distance);
-                    edgesToExplore = newEdgesToExplore;
-                    distance++;
-                }
-
-                let total = 0;
-                for (let n = 0; n < predictions.predictions.length; n++)
-                    total += predictions.predictions[n];
-                return total = predictions.predictions.length;
-            }
-
-            resolveTouch(energyType, startingNode, strength, outputCollection) {
-                this.iteration++;
-                let edgesToExplore = this.getInitialEdgesToExplore(startingNode, strength);
-                while (edgesToExplore.length > 0) {
-                    let newEdgesToExplore = this.exploreEdgesForTouch(energyType, edgesToExplore, outputCollection);
+                    let newEdgesToExplore = this.exploreEdges(energyType, edgesToExplore, edgesUnexplored, interactionType);
                     edgesToExplore = newEdgesToExplore;
                 }
             }
@@ -531,8 +391,7 @@
                 return edgesToExplore;
             }
 
-            // TODO this is copy-pasted
-            exploreEdgesForSight(energyType, edgesToExplore, predictions, distance) {
+            exploreEdges(energyType, edgesToExplore, edgesUnexplored, interactionType) {
                 let newEdgesToExplore = [];
                 for (const edgeToExplore of edgesToExplore) {
                     const nextNode = this.getOtherNode(edgeToExplore[0], edgeToExplore[1]);
@@ -540,36 +399,15 @@
                     for (const nextEdge of nextNode.edges) {
                         if (nextEdge === edgeToExplore)
                             continue;
-                        if (nextEdge.iterationChanged === this.iteration)
+                        if (!edgesUnexplored.containsEdge(nextEdge))
                             continue;
-                        nextEdge.iterationChanged = this.iteration;
+                        edgesUnexplored.removeEdge(nextEdge);
                         
-                        const energy = this.readEnergy(energyType, nextEdge);
-                        const importance = 1 / distance;
-                        predictions.add(energy * importance);
-                    }
-                }
-                return newEdgesToExplore;
-            }
-
-            exploreEdgesForTouch(energyType, edgesToExplore, outputCollection) {
-                let newEdgesToExplore = [];
-                for (const edgeToExplore of edgesToExplore) {
-                    const nextNode = this.getOtherNode(edgeToExplore[0], edgeToExplore[1]);
-                    let totalNearbyEnergy = nextNode.getNearbyEnergy(energyType);
-                    for (const nextEdge of nextNode.edges) {
-                        if (nextEdge === edgeToExplore)
-                            continue;
-                        if (nextEdge.iterationChanged === this.iteration)
-                            continue;
-                        nextEdge.iterationChanged = this.iteration;
-                        
-                        const remainingEnergy = this.storeEnergy(energyType, nextEdge, totalNearbyEnergy, edgeToExplore[2]);
+                        const remainingEnergy = this.processEnergy(energyType, nextEdge, totalNearbyEnergy, edgeToExplore[2], interactionType);
                         newEdgesToExplore.push([nextNode, nextEdge, remainingEnergy]);
                     }
                     if (nextNode.isOutline) {
-                        const orientation = energyType[1] == '+' ? 1 : -1;
-                        outputCollection.add(new Output(nextNode, edgeToExplore[2], orientation));
+                        this.triggerOutput(nextNode, edgeToExplore[2]);
                     }
                 }
                 return newEdgesToExplore;
@@ -581,24 +419,24 @@
                 return edge.node1;
             }
 
-            readEnergy(energyType, nextEdge) {
-                return nextEdge.readEnergy(energyType, this.iteration);
+            edgeIsUnexplored(edge, edgesUnexplored) {
+                return edgesUnexplored.includes(edge);
             }
 
-            storeEnergy(energyType, nextEdge, totalNearbyEnergy, strength) {
+            processEnergy(energyType, nextEdge, totalNearbyEnergy, strength, interactionType) {
                 const currentStrength = nextEdge.energies[energyType].strength;
                 const energyToSend = currentStrength / totalNearbyEnergy * strength;
-                const proportionToStore = PERCENT_ENERGY_TO_STORE;
+                const proportionToStore = ENERGY_TRANSFER_MULTIPLIER;
                 const energyToStore = energyToSend * proportionToStore;
-                nextEdge.storeEnergy(energyType, energyToStore, this.iteration);
+                nextEdge.storeEnergy(energyType, energyToStore, this.iteration, interactionType);
                 return energyToSend - energyToStore;
             }
 
-            triggerOutput(output) {
-                const impulseStrength = output.strength * ACCELERATION;
-                const angle = Math.atan2(output.node.y, output.node.x);
-                this.velocityX += Math.cos(angle) * impulseStrength * output.orientation;
-                this.velocityY += Math.sin(angle) * impulseStrength * output.orientation;
+            triggerOutput(node, strength) {
+                const impulseStrength = strength * ACCELERATION;
+                const angle = Math.atan2(node.y, node.x);
+                this.velocityX += Math.cos(angle) * impulseStrength;
+                this.velocityY += Math.sin(angle) * impulseStrength;
             }
 
             hexToR(hex) {
@@ -646,13 +484,9 @@
             draw() {
                 if (!this.doDraw)
                     return;
-                this.drawOutline();
-            }
-
-            drawWithNetwork(energyFilter) {
                 for (const node of this.nodes) {
                     for (const edge of node.edges) {
-                        edge.draw(this, energyFilter);
+                        edge.draw(this);
                     }
                     node.draw(this);
                 }
@@ -675,36 +509,21 @@
             }
         }
 
-        const mainBall = new Ball(0, 0, MAIN_BALL_SIZE, 0, 0, "#ffffff", true);
-        const worldBalls = [];
-
-        
-        function createBalls(color, pleasure, pain, num) {
+        const mainBall = new Ball(0, 0, MAIN_BALL_SIZE, "#ffffff", NETWORK_SIZE, true);
+        const allBalls = [mainBall];
+        function createBalls(color, num) {
             for (let n = 0; n < num; n++) {
                 const radius = 1;
                 const angle = Math.random() * Math.PI * 2;
                 const magnitude = Math.random() * 300 + mainBall.radius + radius;
-                const ball = new Ball(Math.cos(angle) * magnitude, Math.sin(angle) * magnitude, radius, pleasure, pain, color, true);
-                worldBalls.push(ball);
+                const ball = new Ball(Math.cos(angle) * magnitude, Math.sin(angle) * magnitude, radius, color, 0, true);
+                allBalls.push(ball);
             }
         }
-
-        if (setup === SETUP_RANDOM) {
-            createBalls(GOOD_BALL_COLOR, PLEASURE_TOUCHING_GOOD_BALL, 0, GOOD_BALL_COUNT);
-            createBalls(BAD_BALL_COLOR, 0, PAIN_TOUCHING_BAD_BALL, BAD_BALL_COUNT);
-        }
-        else if (setup === SETUP_DEMONSTRATE_DYSFUNCTION) {
-            worldBalls.push(new Ball(-100, 0, 30, 0, PAIN_TOUCHING_BAD_BALL, BAD_BALL_COLOR, true));
-            for (let n = 0; n < 20; n++)
-                worldBalls.push(new Ball(100 + Math.random() * 50 - 25, Math.random() * 50 - 25, 1, 0, PAIN_TOUCHING_BAD_BALL, BAD_BALL_COLOR, true));
-            for (let n = 0; n < 20; n++)
-                worldBalls.push(new Ball(Math.random() * 50 - 25, 100 + Math.random() * 50 - 25, 1, PLEASURE_TOUCHING_GOOD_BALL, 0, GOOD_BALL_COLOR, true));
-            for (let n = 0; n < 20; n++)
-                worldBalls.push(new Ball(Math.random() * 50 - 25, -100 + Math.random() * 50 - 25, 1, PLEASURE_TOUCHING_GOOD_BALL, 0, GOOD_BALL_COLOR, true));
-        }
-
-
-        const mouseBall = new Ball(0, 0, MOUSE_BALL_SIZE, PLEASURE_SEEING_MOUSE, 0, "#ffffff", true);
+        createBalls("#0000ff", BLUE_BALL_COUNT);
+        createBalls("#ff0000", RED_BALL_COUNT);
+        const mouseBall = new Ball(0, 0, MOUSE_BALL_SIZE, "#ffffff", 0, true);
+        allBalls.push(mouseBall);
         
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -723,30 +542,32 @@
             mouseBall.x = mouseBallX;
             mouseBall.y = mouseBallY;
 
-            mainBall.findTouches();
-
-            for (const ball of worldBalls) {
-                mainBall.processSight(ball);
+            for (const ball of allBalls) {
+                if (ball === mainBall)
+                    continue;
+                mainBall.processInput(ball);
             }
-            mainBall.processSight(mouseBall);
 
-            for (const ball of [...worldBalls, mouseBall, mainBall]) {
+            for (const ball of allBalls) {
                 ball.update();
                 ball.draw();
             }
         }
 
         function animateInternalMode() {
+            let mouseBallX = mouseX - canvas.width / 2;
+            let mouseBallY = mouseY - canvas.height / 2;
+            mouseBall.x = mouseBallX;
+            mouseBall.y = mouseBallY;
+            mainBall.processInput(mouseBall);
+            mainBall.x = 0;
             mainBall.y = 0;
-            mainBall.x = -canvas.width / 2 / 3;
-            mainBall.drawWithNetwork(PLEASURE);
-            mainBall.x = canvas.width / 2 / 3;
-            mainBall.drawWithNetwork(PAIN);
-
-            ctx.font = '24px Arial';
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText('PLEASURE', canvas.width / 2 - canvas.width / 2 / 3 - ctx.measureText('PLEASURE').width / 2, canvas.height / 2 - mainBall.radius - 20);
-            ctx.fillText('PAIN', canvas.width / 2 + canvas.width / 2 / 3 - ctx.measureText('PAIN').width / 2, canvas.height / 2 - mainBall.radius - 20);
+            mainBall.velocityX = 0;
+            mainBall.velocityY = 0;
+            for (const ball of [mainBall, mouseBall]) {
+                ball.update();
+                ball.draw();
+            }
         }
 
         function getRandomHexColor() {
